@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinal — voz e tela com seus amigos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg: #0c0f13;
+    --panel: #12161c;
+    --panel-2: #171c24;
+    --line: #232a33;
+    --text: #e9edf1;
+    --muted: #7c8794;
+    --signal: #3ddc97;
+    --signal-dim: #1f7a54;
+    --warn: #f5a623;
+    --danger: #e5484d;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height:100vh;
+    padding: 28px 20px 100px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+
+  header{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:26px; flex-wrap:wrap;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--signal); box-shadow:0 0 0 4px rgba(61,220,151,0.12);}
+  .brand h1{font-size:20px; margin:0; letter-spacing:0.2px; font-weight:700;}
+  .brand span.tag{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); display:block; margin-top:2px;}
+
+  .id-card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding:10px 14px;
+    display:flex; align-items:center; gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+  }
+  .id-card .label{color:var(--muted); font-size:11px;}
+  .id-card code{color:var(--signal); font-weight:600; word-break:break-all;}
+  .id-card button{
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    border-radius:6px; padding:5px 9px; font-size:11px; cursor:pointer; font-family:inherit;
+  }
+  .id-card button:hover{color:var(--text); border-color:var(--muted);}
+
+  .status-line{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted);
+    margin: 0 0 22px 0; min-height:16px;
+  }
+  .status-line.err{color:var(--danger);}
+  .status-line.ok{color:var(--signal);}
+
+  .connect-row{
+    display:flex; gap:10px; margin-bottom:28px; flex-wrap:wrap;
+  }
+  .connect-row input{
+    flex:1; min-width:220px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:12px 14px;
+    border-radius: var(--radius);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    outline:none;
+  }
+  .connect-row input:focus{border-color:var(--signal-dim);}
+  .connect-row input::placeholder{color:#4c5560;}
+  .connect-row button{
+    background: var(--signal);
+    color:#06120c;
+    border:none;
+    padding:0 20px;
+    border-radius: var(--radius);
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    font-family:'Space Grotesk', sans-serif;
+  }
+  .connect-row button:hover{filter:brightness(1.08);}
+  .connect-row button:disabled{opacity:0.4; cursor:not-allowed;}
+
+  .section-label{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:0.08em; margin: 0 0 12px 2px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap:14px;
+    margin-bottom: 30px;
+  }
+  .tile{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    overflow:hidden;
+    display:flex; flex-direction:column;
+    min-height:150px;
+  }
+  .tile .screen-area{
+    aspect-ratio: 16/10;
+    background: #05070a;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .tile video{width:100%; height:100%; object-fit:cover; display:block;}
+  .tile .no-share{color:#3a4450; font-family:'IBM Plex Mono', monospace; font-size:11px; text-align:center; padding:10px;}
+  .tile .meta{
+    padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .tile .meta .peer-id{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--text); word-break:break-all;}
+  .tile .meta .peer-status{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); flex-shrink:0;}
+  .live-dot{width:7px;height:7px;border-radius:50%; background:var(--signal); box-shadow:0 0 0 3px rgba(61,220,151,0.15); flex-shrink:0;}
+  .tile .disconnect{
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    border-radius:6px; font-size:11px; padding:4px 8px; cursor:pointer; font-family:inherit; margin-top:8px; align-self:flex-start;
+  }
+  .tile .disconnect:hover{color:var(--danger); border-color:var(--danger);}
+
+  .empty{
+    border:1px dashed var(--line); border-radius: var(--radius);
+    padding: 26px; text-align:center; color:var(--muted);
+    font-size:13px; margin-bottom:30px;
+  }
+
+  /* control bar */
+  .controlbar{
+    position:fixed; left:0; right:0; bottom:0;
+    background: rgba(12,15,19,0.92);
+    backdrop-filter: blur(10px);
+    border-top:1px solid var(--line);
+    padding: 14px 20px;
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    flex-wrap:wrap;
+  }
+  .ctrl-btn{
+    display:flex; align-items:center; gap:9px;
+    background: var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:11px 18px;
+    border-radius: 999px;
+    cursor:pointer;
+    font-family:'Space Grotesk', sans-serif;
+    font-size:13px;
+    font-weight:500;
+  }
+  .ctrl-btn:hover{border-color:#3a4450;}
+  .ctrl-btn.active-mic{border-color: var(--signal-dim); color: var(--signal);}
+  .ctrl-btn.muted{border-color: var(--danger); color: var(--danger);}
+  .ctrl-btn.sharing{border-color: var(--warn); color: var(--warn);}
+
+  .meter{display:flex; align-items:flex-end; gap:2px; height:14px;}
+  .meter i{
+    display:block; width:3px; background: var(--signal); border-radius:1px;
+    height:3px; transition: height 0.08s linear; opacity:0.85;
+  }
+  .ctrl-btn.muted .meter i{background:#4c5560;}
+
+  footer.note{
+    text-align:center; color:#495159; font-size:11px; margin-top:6px; font-family:'IBM Plex Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Sinal</h1>
+        <span class="tag">voz + tela, direto entre vocês — sem servidor no meio</span>
+      </div>
+    </div>
+    <div class="id-card">
+      <div>
+        <div class="label">seu ID</div>
+        <code id="myId">gerando…</code>
+      </div>
+      <button id="copyBtn">copiar</button>
+    </div>
+  </header>
+
+  <div class="status-line" id="statusLine">iniciando…</div>
+
+  <div class="connect-row">
+    <input id="friendIdInput" type="text" placeholder="cole o ID do seu amigo aqui" autocomplete="off">
+    <button id="connectBtn">Chamar</button>
+  </div>
+
+  <div class="section-label">participantes conectados</div>
+  <div id="grid" class="grid"></div>
+  <div id="emptyState" class="empty">ninguém conectado ainda — envie seu ID para um amigo, ou cole o ID dele acima.</div>
+
+  <footer class="note">a conexão é ponto a ponto (WebRTC); só o endereço inicial passa por um servidor público de sinalização.</footer>
+</div>
+
+<div class="controlbar">
+  <button id="micBtn" class="ctrl-btn active-mic">
+    <span id="micLabel">Mic ativo</span>
+    <span class="meter" id="meter">
+      <i></i><i></i><i></i><i></i><i></i>
+    </span>
+  </button>
+  <button id="screenBtn" class="ctrl-btn">Compartilhar tela</button>
+</div>
+
+<script>
+const statusLine = document.getElementById('statusLine');
+const myIdEl = document.getElementById('myId');
+const grid = document.getElementById('grid');
+const emptyState = document.getElementById('emptyState');
+const friendIdInput = document.getElementById('friendIdInput');
+const connectBtn = document.getElementById('connectBtn');
+const micBtn = document.getElementById('micBtn');
+const micLabel = document.getElementById('micLabel');
+const screenBtn = document.getElementById('screenBtn');
+const meterBars = document.querySelectorAll('#meter i');
+
+function setStatus(msg, kind){
+  statusLine.textContent = msg;
+  statusLine.className = 'status-line' + (kind ? ' ' + kind : '');
+}
+
+let peer = null;
+let localAudioStream = null;
+let localScreenStream = null;
+let micEnabled = true;
+let sharing = false;
+
+// peerId -> { audioCall, screenCall, tileEl, videoEl, statusEl }
+const peers = {};
+
+function updateEmptyState(){
+  emptyState.style.display = Object.keys(peers).length === 0 ? 'block' : 'none';
+}
+
+function ensureTile(peerId){
+  if (peers[peerId] && peers[peerId].tileEl) return peers[peerId];
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.innerHTML = `
+    <div class="screen-area">
+      <video autoplay playsinline></video>
+      <div class="no-share">sem tela compartilhada</div>
+    </div>
+    <div class="meta">
+      <div>
+        <div class="peer-id">${peerId}</div>
+        <button class="disconnect">desconectar</button>
+      </div>
+      <div class="peer-status"><span class="live-dot"></span>conectado</div>
+    </div>
+  `;
+  grid.appendChild(tile);
+  const videoEl = tile.querySelector('video');
+  const noShareEl = tile.querySelector('.no-share');
+  tile.querySelector('.disconnect').addEventListener('click', () => disconnectPeer(peerId));
+
+  peers[peerId] = peers[peerId] || {};
+  Object.assign(peers[peerId], { tileEl: tile, videoEl, noShareEl, audioEl: new Audio() });
+  peers[peerId].audioEl.autoplay = true;
+  updateEmptyState();
+  return peers[peerId];
+}
+
+function disconnectPeer(peerId){
+  const p = peers[peerId];
+  if (!p) return;
+  if (p.audioCall) p.audioCall.close();
+  if (p.screenCall) p.screenCall.close();
+  if (p.tileEl) p.tileEl.remove();
+  delete peers[peerId];
+  updateEmptyState();
+}
+
+function attachRemoteAudio(peerId, stream){
+  const p = ensureTile(peerId);
+  p.audioEl.srcObject = stream;
+  p.audioEl.play().catch(()=>{});
+}
+
+function attachRemoteScreen(peerId, stream){
+  const p = ensureTile(peerId);
+  p.videoEl.srcObject = stream;
+  p.noShareEl.style.display = 'none';
+  p.videoEl.style.display = 'block';
+  stream.getVideoTracks()[0].addEventListener('ended', () => {
+    p.videoEl.style.display = 'none';
+    p.noShareEl.style.display = 'block';
+  });
+}
+
+function callPeerAudio(peerId){
+  if (!localAudioStream) return;
+  const call = peer.call(peerId, localAudioStream, { metadata: { type: 'audio' } });
+  const p = ensureTile(peerId);
+  p.audioCall = call;
+  call.on('stream', remoteStream => attachRemoteAudio(peerId, remoteStream));
+  call.on('close', () => disconnectPeer(peerId));
+  call.on('error', () => setStatus('erro de conexão com ' + peerId, 'err'));
+}
+
+function callPeerScreen(peerId){
+  if (!localScreenStream) return;
+  const call = peer.call(peerId, localScreenStream, { metadata: { type: 'screen' } });
+  const p = ensureTile(peerId);
+  p.screenCall = call;
+}
+
+function connectToPeer(peerId){
+  if (!peerId || peerId === peer.id) return;
+  ensureTile(peerId);
+  callPeerAudio(peerId);
+  if (sharing) callPeerScreen(peerId);
+  setStatus('conectando a ' + peerId + '…', 'ok');
+}
+
+// ---- init peer + mic ----
+async function init(){
+  try{
+    localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    setupMicMeter(localAudioStream);
+  }catch(e){
+    setStatus('não foi possível acessar o microfone — permita o acesso e recarregue a página.', 'err');
+    return;
+  }
+
+  peer = new Peer();
+
+  peer.on('open', id => {
+    myIdEl.textContent = id;
+    setStatus('pronto — compartilhe seu ID com um amigo para conectar.', 'ok');
+  });
+
+  peer.on('call', call => {
+    const type = call.metadata && call.metadata.type;
+    if (type === 'screen'){
+      call.answer();
+      call.on('stream', remoteStream => attachRemoteScreen(call.peer, remoteStream));
+      const p = ensureTile(call.peer);
+      p.screenCall = call;
+    } else {
+      call.answer(localAudioStream);
+      call.on('stream', remoteStream => attachRemoteAudio(call.peer, remoteStream));
+      const p = ensureTile(call.peer);
+      p.audioCall = call;
+      call.on('close', () => disconnectPeer(call.peer));
+    }
+  });
+
+  peer.on('error', err => {
+    setStatus('erro: ' + err.type, 'err');
+  });
+
+  peer.on('disconnected', () => {
+    setStatus('conexão com o servidor de sinalização perdida — tentando reconectar…', 'err');
+    peer.reconnect();
+  });
+}
+
+// ---- controls ----
+connectBtn.addEventListener('click', () => {
+  const id = friendIdInput.value.trim();
+  if (!id) return;
+  connectToPeer(id);
+  friendIdInput.value = '';
+});
+friendIdInput.addEventListener('keydown', e => { if (e.key === 'Enter') connectBtn.click(); });
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(myIdEl.textContent).then(() => {
+    const btn = document.getElementById('copyBtn');
+    const old = btn.textContent;
+    btn.textContent = 'copiado';
+    setTimeout(() => btn.textContent = old, 1200);
+  });
+});
+
+micBtn.addEventListener('click', () => {
+  if (!localAudioStream) return;
+  micEnabled = !micEnabled;
+  localAudioStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+  micBtn.classList.toggle('muted', !micEnabled);
+  micBtn.classList.toggle('active-mic', micEnabled);
+  micLabel.textContent = micEnabled ? 'Mic ativo' : 'Mic mudo';
+});
+
+screenBtn.addEventListener('click', async () => {
+  if (!sharing){
+    try{
+      localScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    }catch(e){
+      return; // user cancelled
+    }
+    sharing = true;
+    screenBtn.textContent = 'Parar compartilhamento';
+    screenBtn.classList.add('sharing');
+    Object.keys(peers).forEach(callPeerScreen);
+    localScreenStream.getVideoTracks()[0].addEventListener('ended', stopScreenShare);
+  } else {
+    stopScreenShare();
+  }
+});
+
+function stopScreenShare(){
+  sharing = false;
+  screenBtn.textContent = 'Compartilhar tela';
+  screenBtn.classList.remove('sharing');
+  if (localScreenStream){
+    localScreenStream.getTracks().forEach(t => t.stop());
+  }
+  Object.values(peers).forEach(p => { if (p.screenCall) p.screenCall.close(); });
+  localScreenStream = null;
+}
+
+// ---- mic level meter (signature touch: live waveform reacting to your voice) ----
+function setupMicMeter(stream){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    function tick(){
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a,b) => a+b, 0) / data.length;
+      const level = micEnabled ? Math.min(1, avg / 90) : 0;
+      meterBars.forEach((bar, i) => {
+        const threshold = (i+1) / meterBars.length;
+        const h = level >= threshold * 0.6 ? 4 + level * 14 : 3;
+        bar.style.height = h + 'px';
+      });
+      requestAnimationFrame(tick);
+    }
+    tick();
+  }catch(e){ /* meter is cosmetic, fail silently */ }
+}
+
+init();
+</script>
+</body>
+</html>
