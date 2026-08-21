@@ -1,8 +1,8 @@
 import { useContext, useSyncExternalStore } from 'react'
 
-import type { MeshSession } from '../lib/mesh'
-import type { MeshSnapshot } from '../lib/types'
+import type { MeshSession } from './MeshSession'
 import { SessionContext } from './sessionContext'
+import type { MeshSnapshot } from './types'
 
 /** The session object, for issuing commands (connect, mute, share, chat). */
 export function useSession(): MeshSession {

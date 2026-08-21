@@ -29,22 +29,54 @@ Outros comandos:
 A regra central: **a lógica de conexão não conhece React, e os componentes não
 conhecem WebRTC.**
 
+Os arquivos são agrupados por **domínio**, não por tipo. Cada pasta em
+`features/` reúne o componente, o hook e a lógica daquele assunto, de modo que
+mexer no chat é abrir uma pasta em vez de caçar três.
+
 ```
 src/
-├── lib/              núcleo, sem React
-│   ├── mesh.ts       MeshSession — dona de todas as conexões, chamadas e streams
-│   ├── protocol.ts   mensagens do data channel + validação de entrada não confiável
-│   ├── media.ts      getUserMedia / getDisplayMedia
-│   ├── identity.ts   ID estável e nome, persistidos em localStorage
-│   ├── invite.ts     link de convite no fragmento da URL
-│   └── types.ts      tipos de domínio (o que a UI enxerga)
-├── hooks/            a ponte entre o núcleo e o React
-│   ├── useMesh.ts    useSyncExternalStore sobre o snapshot da sessão
-│   ├── useMediaStream.ts, useMicLevel.ts, useCopy.ts
-│   └── sessionContext.ts
-├── components/       só apresentação; recebem dados, disparam comandos
-└── styles/           tokens de design + reset global
+├── main.tsx                 entrada
+├── app/                     raiz de composição — só monta as features
+│   └── App.tsx
+├── features/
+│   ├── session/             conexão, sinalização, ciclo de vida
+│   │   ├── MeshSession.ts   dona de todas as conexões, chamadas e streams
+│   │   ├── protocol.ts      mensagens do data channel + validação
+│   │   ├── ice.ts           STUN/TURN
+│   │   ├── useMesh.ts       useSyncExternalStore sobre o snapshot
+│   │   ├── SessionProvider.tsx, sessionContext.ts
+│   │   ├── ConnectForm.tsx, StatusLine.tsx
+│   │   └── types.ts         SessionStatus, MeshSnapshot
+│   ├── identity/            quem você é e como te encontram
+│   │   ├── storage.ts       ID estável e nome em localStorage
+│   │   ├── invite.ts        link no fragmento da URL
+│   │   └── IdentityCard.tsx
+│   ├── participants/        quem está na sala
+│   │   ├── PeerGrid.tsx, PeerTile.tsx, LocalPreview.tsx
+│   │   └── types.ts         RemotePeer
+│   ├── media/               microfone, tela e controles
+│   │   ├── capture.ts       getUserMedia / getDisplayMedia
+│   │   ├── useMediaStream.ts, useMicLevel.ts
+│   │   └── ControlBar.tsx, MicMeter.tsx
+│   └── chat/
+│       ├── ChatPanel.tsx
+│       └── types.ts         ChatMessage
+├── shared/                  sem dono; serve a todos
+│   ├── ui/                  BootScreen, ErrorBoundary
+│   └── hooks/useCopy.ts
+└── styles/                  tokens de design + reset global
 ```
+
+### Convenção de imports
+
+Dentro de uma feature, caminho relativo (`./protocol`). Entre features, o alias
+`@/` (`@/features/session/useMesh`). A regra não é estética: o alias faz cada
+dependência entre domínios saltar aos olhos na revisão, então acoplamento novo
+é uma escolha visível em vez de um `../../` que passa batido.
+
+Não há arquivos-barril (`index.ts`) de propósito. Como `session` depende dos
+tipos de `participants` e `participants` depende do hook de `session`, barris
+fechariam um ciclo de importação — os caminhos diretos evitam isso.
 
 ### MeshSession
 

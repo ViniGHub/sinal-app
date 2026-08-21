@@ -1,15 +1,22 @@
 import { Peer } from 'peerjs'
 import type { DataConnection, MediaConnection } from 'peerjs'
 
-import { loadDisplayName, loadPeerId, rotatePeerId, saveDisplayName } from './identity'
-import { buildPeerConfig } from './ice'
+import type { ChatMessage } from '@/features/chat/types'
+import {
+  loadDisplayName,
+  loadPeerId,
+  rotatePeerId,
+  saveDisplayName,
+} from '@/features/identity/storage'
 import {
   MediaError,
   acquireMicrophone,
   acquireScreen,
   createSilentAudioStream,
   stopStream,
-} from './media'
+} from '@/features/media/capture'
+import type { RemotePeer } from '@/features/participants/types'
+import { buildPeerConfig } from './ice'
 import {
   MAX_CHAT_LENGTH,
   isValidPeerId,
@@ -19,7 +26,7 @@ import {
   shouldInitiate,
   type WireMessage,
 } from './protocol'
-import type { ChatMessage, MeshSnapshot, RemotePeer, SessionStatus } from './types'
+import type { MeshSnapshot, SessionStatus } from './types'
 
 /** Everything we hold for one remote participant. Never leaves this module. */
 interface PeerRecord {

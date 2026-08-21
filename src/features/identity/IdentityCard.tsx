@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 
-import { useCopy } from '../hooks/useCopy'
-import { useSession } from '../hooks/useMesh'
-import { buildInviteUrl } from '../lib/invite'
-import { MAX_NAME_LENGTH } from '../lib/protocol'
+import { MAX_NAME_LENGTH } from '@/features/session/protocol'
+import { useSession } from '@/features/session/useMesh'
+import { useCopy } from '@/shared/hooks/useCopy'
+import { buildInviteUrl } from './invite'
 import styles from './IdentityCard.module.css'
 
 interface IdentityCardProps {

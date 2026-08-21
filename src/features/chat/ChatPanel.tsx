@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
-import { useSession } from '../hooks/useMesh'
-import { MAX_CHAT_LENGTH } from '../lib/protocol'
-import type { ChatMessage } from '../lib/types'
+import { MAX_CHAT_LENGTH } from '@/features/session/protocol'
+import { useSession } from '@/features/session/useMesh'
+import type { ChatMessage } from './types'
 import styles from './ChatPanel.module.css'
 
 interface ChatPanelProps {

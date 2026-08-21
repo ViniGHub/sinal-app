@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
-import { SessionContext } from '../hooks/sessionContext'
-import { MeshSession } from '../lib/mesh'
+import { MeshSession } from './MeshSession'
+import { SessionContext } from './sessionContext'
 
 interface SessionProviderProps {
   children: ReactNode

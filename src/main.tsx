@@ -1,10 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { App } from './App'
-import { BootScreen } from './components/BootScreen'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { SessionProvider } from './components/SessionProvider'
+import { App } from '@/app/App'
+import { SessionProvider } from '@/features/session/SessionProvider'
+import { BootScreen } from '@/shared/ui/BootScreen'
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import './styles/global.css'
 
 const container = document.getElementById('root')

@@ -1,4 +1,4 @@
-import { useMediaStream } from '../hooks/useMediaStream'
+import { useMediaStream } from '@/features/media/useMediaStream'
 import styles from './PeerTile.module.css'
 
 /**

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { ChatPanel } from './components/ChatPanel'
-import { ConnectForm } from './components/ConnectForm'
-import { ControlBar } from './components/ControlBar'
-import { IdentityCard } from './components/IdentityCard'
-import { PeerGrid } from './components/PeerGrid'
-import { StatusLine } from './components/StatusLine'
-import { useMesh, useSession } from './hooks/useMesh'
-import { clearInvite, readInvite } from './lib/invite'
+import { ChatPanel } from '@/features/chat/ChatPanel'
+import { IdentityCard } from '@/features/identity/IdentityCard'
+import { clearInvite, readInvite } from '@/features/identity/invite'
+import { ControlBar } from '@/features/media/ControlBar'
+import { PeerGrid } from '@/features/participants/PeerGrid'
+import { ConnectForm } from '@/features/session/ConnectForm'
+import { StatusLine } from '@/features/session/StatusLine'
+import { useMesh, useSession } from '@/features/session/useMesh'
 import styles from './App.module.css'
 
 export function App() {

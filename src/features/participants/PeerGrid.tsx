@@ -1,6 +1,6 @@
-import type { RemotePeer } from '../lib/types'
 import { LocalPreview } from './LocalPreview'
 import { PeerTile } from './PeerTile'
+import type { RemotePeer } from './types'
 import styles from './PeerGrid.module.css'
 
 interface PeerGridProps {

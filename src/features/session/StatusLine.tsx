@@ -1,4 +1,4 @@
-import type { SessionStatus } from '../lib/types'
+import type { SessionStatus } from './types'
 import styles from './StatusLine.module.css'
 
 /**

@@ -1,4 +1,4 @@
-import { isValidPeerId } from './protocol'
+import { isValidPeerId } from '@/features/session/protocol'
 
 /**
  * Invites travel in the URL fragment rather than the query string: fragments

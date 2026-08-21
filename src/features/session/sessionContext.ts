@@ -1,6 +1,6 @@
 import { createContext } from 'react'
 
-import type { MeshSession } from '../lib/mesh'
+import type { MeshSession } from './MeshSession'
 
 /**
  * Lives in its own module so the provider component and the hooks that read it

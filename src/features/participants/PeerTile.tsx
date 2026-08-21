@@ -1,9 +1,9 @@
 import { useRef } from 'react'
 
-import { useMediaStream } from '../hooks/useMediaStream'
-import { useSession } from '../hooks/useMesh'
-import { shortId } from '../lib/protocol'
-import type { RemotePeer } from '../lib/types'
+import { useMediaStream } from '@/features/media/useMediaStream'
+import { shortId } from '@/features/session/protocol'
+import { useSession } from '@/features/session/useMesh'
+import type { RemotePeer } from './types'
 import styles from './PeerTile.module.css'
 
 const STATUS_LABEL: Record<RemotePeer['status'], string> = {

@@ -1,7 +1,7 @@
-import { useMicLevel } from '../hooks/useMicLevel'
-import { useSession } from '../hooks/useMesh'
-import styles from './ControlBar.module.css'
+import { useSession } from '@/features/session/useMesh'
 import { MicMeter } from './MicMeter'
+import { useMicLevel } from './useMicLevel'
+import styles from './ControlBar.module.css'
 
 interface ControlBarProps {
   micStream: MediaStream | null

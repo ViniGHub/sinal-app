@@ -1,4 +1,4 @@
-import { isValidPeerId, sanitizeName } from './protocol'
+import { isValidPeerId, sanitizeName } from '@/features/session/protocol'
 
 const ID_KEY = 'sinal.peerId'
 const NAME_KEY = 'sinal.displayName'

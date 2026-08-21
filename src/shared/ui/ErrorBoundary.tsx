@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-import styles from './BootScreen.module.css'
+import styles from './ErrorBoundary.module.css'
 
 interface State {
   error: Error | null
@@ -26,10 +26,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     if (!error) return this.props.children
 
     return (
-      <div className={styles.boot} role="alert">
+      <div className={styles.fallback} role="alert">
         <p>algo quebrou por aqui.</p>
-        <small>{error.message}</small>
-        <button type="button" onClick={() => window.location.reload()}>
+        <small className={styles.detail}>{error.message}</small>
+        <button
+          type="button"
+          className={styles.reload}
+          onClick={() => window.location.reload()}
+        >
           recarregar
         </button>
       </div>

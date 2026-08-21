@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
-import { useSession } from '../hooks/useMesh'
+import { useSession } from './useMesh'
 import styles from './ConnectForm.module.css'
 
 /** Dials a peer by pasted id, or by an invite link pasted whole. */
