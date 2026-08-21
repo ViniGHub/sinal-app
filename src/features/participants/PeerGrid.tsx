@@ -6,9 +6,11 @@ import styles from './PeerGrid.module.css'
 interface PeerGridProps {
   peers: RemotePeer[]
   localScreen: MediaStream | null
+  /** Receives a peer id, or 'self' for our own capture. */
+  onExpand: (target: string) => void
 }
 
-export function PeerGrid({ peers, localScreen }: PeerGridProps) {
+export function PeerGrid({ peers, localScreen, onExpand }: PeerGridProps) {
   if (peers.length === 0 && !localScreen) {
     return (
       <p className={styles.empty}>
@@ -19,9 +21,9 @@ export function PeerGrid({ peers, localScreen }: PeerGridProps) {
 
   return (
     <div className={styles.grid}>
-      {localScreen && <LocalPreview stream={localScreen} />}
+      {localScreen && <LocalPreview stream={localScreen} onExpand={onExpand} />}
       {peers.map((peer) => (
-        <PeerTile key={peer.id} peer={peer} />
+        <PeerTile key={peer.id} peer={peer} onExpand={onExpand} />
       ))}
     </div>
   )

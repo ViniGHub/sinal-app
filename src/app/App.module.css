@@ -3,6 +3,16 @@
   padding: 28px var(--space-5) calc(var(--control-bar-height) + var(--space-6));
 }
 
+/*
+ * In fullscreen only this element is painted, so it has to carry the page
+ * background itself — the one on <body> is no longer part of the render — and
+ * own its own scrolling.
+ */
+.page:fullscreen {
+  background: var(--bg);
+  overflow-y: auto;
+}
+
 .wrap {
   max-width: 920px;
   margin: 0 auto;

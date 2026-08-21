@@ -1,5 +1,3 @@
-import { useRef } from 'react'
-
 import { useChannels } from '@/features/channels/useChannels'
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
@@ -13,27 +11,27 @@ const STATUS_LABEL: Record<RemotePeer['status'], string> = {
   closed: 'desconectado',
 }
 
-export function PeerTile({ peer }: { peer: RemotePeer }) {
+interface PeerTileProps {
+  peer: RemotePeer
+  onExpand: (target: string) => void
+}
+
+export function PeerTile({ peer, onExpand }: PeerTileProps) {
   const session = useSession()
   const { isSaved, save } = useChannels()
   const videoRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
-  const frameRef = useRef<HTMLDivElement>(null)
 
   const saved = isSaved(peer.id)
 
-  const expand = () => {
-    void frameRef.current?.requestFullscreen?.().catch(() => {})
-  }
-
   return (
     <article className={styles.tile}>
-      <div className={styles.screen} ref={frameRef}>
+      <div className={styles.screen}>
         {peer.screenStream ? (
           <>
             {/* Not muted: on Chromium the shared tab's audio rides along. */}
             <video ref={videoRef} autoPlay playsInline className={styles.video} />
-            <button type="button" className={styles.expand} onClick={expand}>
+            <button type="button" className={styles.expand} onClick={() => onExpand(peer.id)}>
               expandir
             </button>
           </>

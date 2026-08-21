@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ChannelsPanel } from '@/features/channels/ChannelsPanel'
 import { ChatPanel } from '@/features/chat/ChatPanel'
@@ -6,6 +6,8 @@ import { IdentityCard } from '@/features/identity/IdentityCard'
 import { clearInvite, readInvite } from '@/features/identity/invite'
 import { ControlBar } from '@/features/media/ControlBar'
 import { PeerGrid } from '@/features/participants/PeerGrid'
+import { SpotlightView } from '@/features/participants/SpotlightView'
+import { useFullscreen } from '@/shared/hooks/useFullscreen'
 import { ConnectForm } from '@/features/session/ConnectForm'
 import { StatusLine } from '@/features/session/StatusLine'
 import { useMesh, useSession } from '@/features/session/useMesh'
@@ -19,8 +21,16 @@ export function App() {
   // screen, so opening one has to close the other.
   const [panel, setPanel] = useState<'chat' | 'channels' | null>(null)
   const [readCount, setReadCount] = useState(0)
+  // Peer id of the expanded stream, or 'self' for our own capture.
+  const [spotlight, setSpotlight] = useState<string | null>(null)
   const invited = useRef(false)
   const chatOpen = panel === 'chat'
+
+  // Fullscreen targets the whole interface, never the video: the browser hides
+  // everything outside the fullscreen element, which is what used to make the
+  // chat unreachable while a screen was expanded.
+  const pageRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, toggleFullscreen] = useFullscreen(pageRef)
 
   // An invite link carries a channel or a person in the fragment. Act on it
   // once, as soon as the broker has given us an id of our own to dial from.
@@ -48,12 +58,30 @@ export function App() {
     [],
   )
   const closePanel = useCallback(() => setPanel(null), [])
+  const closeSpotlight = useCallback(() => setSpotlight(null), [])
+
+  const spotlighted = useMemo(() => {
+    if (!spotlight) return null
+    if (spotlight === 'self') {
+      return mesh.localScreen ? { stream: mesh.localScreen, label: 'sua tela', muted: true } : null
+    }
+    const peer = mesh.peers.find((candidate) => candidate.id === spotlight)
+    return peer?.screenStream
+      ? { stream: peer.screenStream, label: `tela de ${peer.name}`, muted: false }
+      : null
+  }, [spotlight, mesh.localScreen, mesh.peers])
+
+  // The stream can vanish under us — they stop sharing, or leave entirely.
+  // Drop back to the grid rather than holding an empty black overlay.
+  useEffect(() => {
+    if (spotlight && !spotlighted) setSpotlight(null)
+  }, [spotlight, spotlighted])
 
   const unread = Math.max(0, mesh.messages.length - readCount)
   const connected = mesh.peers.filter((peer) => peer.status === 'connected').length
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       <div className={styles.wrap}>
         <header className={styles.header}>
           <div className={styles.brand}>
@@ -72,13 +100,31 @@ export function App() {
         <h2 className={styles.sectionLabel}>
           participantes {connected > 0 && <span className={styles.count}>{connected}</span>}
         </h2>
-        <PeerGrid peers={mesh.peers} localScreen={mesh.localScreen} />
+        <PeerGrid
+          peers={mesh.peers}
+          localScreen={mesh.localScreen}
+          onExpand={setSpotlight}
+        />
 
         <footer className={styles.note}>
           a conexão é ponto a ponto (WebRTC); só o endereço inicial passa por um servidor público
           de sinalização.
         </footer>
       </div>
+
+      {spotlighted && (
+        <SpotlightView
+          stream={spotlighted.stream}
+          label={spotlighted.label}
+          muted={spotlighted.muted}
+          // Escape belongs to whichever panel is open; only when none is does
+          // it fall through to closing the spotlight.
+          escapeCloses={panel === null}
+          onClose={closeSpotlight}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+        />
+      )}
 
       <ChatPanel messages={mesh.messages} open={chatOpen} onClose={closePanel} />
       <ChannelsPanel open={panel === 'channels'} onClose={closePanel} />
