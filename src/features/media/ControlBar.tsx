@@ -8,8 +8,10 @@ interface ControlBarProps {
   micMuted: boolean
   sharing: boolean
   chatOpen: boolean
+  channelsOpen: boolean
   unreadCount: number
   onToggleChat: () => void
+  onToggleChannels: () => void
 }
 
 export function ControlBar({
@@ -17,8 +19,10 @@ export function ControlBar({
   micMuted,
   sharing,
   chatOpen,
+  channelsOpen,
   unreadCount,
   onToggleChat,
+  onToggleChannels,
 }: ControlBarProps) {
   const session = useSession()
   const level = useMicLevel(micStream, micMuted)
@@ -56,6 +60,15 @@ export function ControlBar({
       >
         <span>Mensagens</span>
         {unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}
+      </button>
+
+      <button
+        type="button"
+        className={styles.button}
+        onClick={onToggleChannels}
+        aria-pressed={channelsOpen}
+      >
+        Canais
       </button>
     </div>
   )

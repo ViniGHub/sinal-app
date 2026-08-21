@@ -58,14 +58,34 @@ src/
 │   │   ├── capture.ts       getUserMedia / getDisplayMedia
 │   │   ├── useMediaStream.ts, useMicLevel.ts
 │   │   └── ControlBar.tsx, MicMeter.tsx
-│   └── chat/
-│       ├── ChatPanel.tsx
-│       └── types.ts         ChatMessage
+│   ├── chat/
+│   │   ├── ChatPanel.tsx
+│   │   └── types.ts         ChatMessage
+│   └── channels/            canais salvos e presença do host
+│       ├── storage.ts       bookmarks em localStorage, validados na leitura
+│       ├── usePresence.ts   sondagem enquanto o painel está aberto
+│       └── ChannelsPanel.tsx
 ├── shared/                  sem dono; serve a todos
 │   ├── ui/                  BootScreen, ErrorBoundary
 │   └── hooks/useCopy.ts
 └── styles/                  tokens de design + reset global
 ```
+
+### Canais salvos e presença
+
+Estando em uma sala, o botão “salvar” no participante guarda o ID dele como um
+canal. O painel lateral lista os salvos e diz quais hosts estão ativos agora.
+
+O broker não tem endpoint de “esse ID está online?”, então a única resposta
+honesta vem de abrir um data channel e ver se ele completa —
+[`MeshSession.probePeer`](src/features/session/MeshSession.ts). A conexão é
+fechada assim que responde, e a sondagem carrega `metadata.probe` para que o
+host **não** a transforme em participante: sem isso, cada checagem colocaria
+um bloco fantasma na tela de todo mundo na sala.
+
+Só há sondagem com o painel aberto. Uma lista de favoritos não deve gerar
+tráfego em segundo plano, e quem já está conectado é dado como ativo sem gastar
+ida e volta.
 
 ### Convenção de imports
 

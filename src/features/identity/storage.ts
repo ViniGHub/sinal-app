@@ -1,4 +1,5 @@
 import { isValidPeerId, sanitizeName } from '@/features/session/protocol'
+import { safeStorage } from '@/shared/safeStorage'
 
 const ID_KEY = 'sinal.peerId'
 const NAME_KEY = 'sinal.displayName'
@@ -6,22 +7,6 @@ const NAME_KEY = 'sinal.displayName'
 /** Unambiguous alphabet: no 0/O or 1/l, so an id can be read out loud. */
 const ALPHABET = '23456789abcdefghijkmnpqrstuvwxyz'
 const ID_LENGTH = 12
-
-/**
- * localStorage throws in private-browsing modes and when embedded in a
- * sandboxed frame. Identity is a convenience, never a requirement, so every
- * access degrades to in-memory behaviour instead of breaking the app.
- */
-function safeStorage(): Storage | null {
-  try {
-    const probe = '__sinal__'
-    window.localStorage.setItem(probe, probe)
-    window.localStorage.removeItem(probe)
-    return window.localStorage
-  } catch {
-    return null
-  }
-}
 
 export function generatePeerId(): string {
   const bytes = new Uint8Array(ID_LENGTH)

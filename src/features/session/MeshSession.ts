@@ -50,6 +50,21 @@ const MAX_MESSAGES = 200
  */
 const DIAL_FALLBACK_MS = 8_000
 
+/**
+ * How long a presence probe waits before calling a host offline. The broker
+ * answers an unknown id quickly; this only covers the case where it answers
+ * nothing at all.
+ */
+const PROBE_TIMEOUT_MS = 6_000
+
+/** An in-flight presence check. Deliberately never becomes a participant. */
+interface Probe {
+  promise: Promise<boolean>
+  settle: (online: boolean) => void
+  conn: DataConnection | null
+  timer: ReturnType<typeof setTimeout>
+}
+
 interface PeerJsError {
   type?: string
   message?: string
@@ -69,6 +84,7 @@ export class MeshSession {
   #screen: MediaStream | null = null
 
   #records = new Map<string, PeerRecord>()
+  #probes = new Map<string, Probe>()
   #messages: ChatMessage[] = []
   #listeners = new Set<() => void>()
 
@@ -126,6 +142,9 @@ export class MeshSession {
     for (const record of this.#records.values()) this.#teardownRecord(record)
     this.#records.clear()
 
+    // Settle rather than drop: a caller awaiting a probe would hang forever.
+    for (const peerId of [...this.#probes.keys()]) this.#settleProbe(peerId, false)
+
     stopStream(this.#mic)
     stopStream(this.#silent)
     stopStream(this.#screen)
@@ -179,6 +198,13 @@ export class MeshSession {
       }
       case 'peer-unavailable': {
         const target = error.message?.match(/peer\s+(\S+)/i)?.[1]
+        // A probe reaching an offline host is an expected answer, not a fault:
+        // settle it quietly instead of flashing an error the user never asked
+        // for. This is the only signal the broker gives us for "not online".
+        if (target && this.#probes.has(target)) {
+          this.#settleProbe(target, false)
+          return
+        }
         if (target && this.#records.has(target)) this.#dropPeer(target)
         this.#setStatus('error', 'esse ID não está online agora.')
         return
@@ -291,6 +317,52 @@ export class MeshSession {
     this.#pushMessage('self', this.#displayName(), text, at)
   }
 
+  /**
+   * Asks whether a host is reachable, without joining them.
+   *
+   * The broker has no "is this id online" endpoint, so the only honest answer
+   * comes from opening a data connection and seeing whether it completes. The
+   * connection is closed the instant it does: this must never turn into a call,
+   * appear in the participant list, or surface an error in the status line.
+   */
+  probePeer(peerId: string): Promise<boolean> {
+    if (!this.#peer || this.#destroyed || !isValidPeerId(peerId)) return Promise.resolve(false)
+    // Our own id and anyone already connected are trivially online — spending a
+    // round trip to learn that would only add latency to the panel.
+    if (peerId === this.#selfId) return Promise.resolve(true)
+    if (this.#records.get(peerId)?.conn?.open) return Promise.resolve(true)
+
+    const inFlight = this.#probes.get(peerId)
+    if (inFlight) return inFlight.promise
+
+    let settle: (online: boolean) => void = () => {}
+    const promise = new Promise<boolean>((resolve) => {
+      settle = resolve
+    })
+
+    const timer = setTimeout(() => this.#settleProbe(peerId, false), PROBE_TIMEOUT_MS)
+    const conn = this.#peer.connect(peerId, { reliable: false, metadata: { probe: true } })
+    this.#probes.set(peerId, { promise, settle, conn, timer })
+
+    conn.on('open', () => this.#settleProbe(peerId, true))
+    conn.on('error', () => this.#settleProbe(peerId, false))
+    conn.on('close', () => this.#settleProbe(peerId, false))
+
+    return promise
+  }
+
+  #settleProbe(peerId: string, online: boolean): void {
+    const probe = this.#probes.get(peerId)
+    // Already settled: the close we trigger below re-enters here, and the
+    // timeout can fire after a verdict was reached.
+    if (!probe) return
+
+    this.#probes.delete(peerId)
+    clearTimeout(probe.timer)
+    probe.conn?.close()
+    probe.settle(online)
+  }
+
   // -------------------------------------------------------- data channel
 
   #dial(peerId: string): void {
@@ -305,6 +377,11 @@ export class MeshSession {
       conn.close()
       return
     }
+
+    // Someone checking whether we are online. The connection opening is itself
+    // the whole answer, and they close it immediately — turning it into a
+    // participant would put a phantom tile on screen for everyone in the room.
+    if ((conn.metadata as { probe?: boolean } | undefined)?.probe === true) return
 
     const record = this.#ensureRecord(peerId)
 

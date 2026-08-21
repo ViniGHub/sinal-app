@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { App } from '@/app/App'
+import { ChannelsProvider } from '@/features/channels/ChannelsProvider'
 import { SessionProvider } from '@/features/session/SessionProvider'
 import { BootScreen } from '@/shared/ui/BootScreen'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
@@ -14,7 +15,9 @@ createRoot(container).render(
   <StrictMode>
     <ErrorBoundary>
       <SessionProvider fallback={<BootScreen />}>
-        <App />
+        <ChannelsProvider>
+          <App />
+        </ChannelsProvider>
       </SessionProvider>
     </ErrorBoundary>
   </StrictMode>,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { ChannelsPanel } from '@/features/channels/ChannelsPanel'
 import { ChatPanel } from '@/features/chat/ChatPanel'
 import { IdentityCard } from '@/features/identity/IdentityCard'
 import { clearInvite, readInvite } from '@/features/identity/invite'
@@ -14,9 +15,12 @@ export function App() {
   const session = useSession()
   const mesh = useMesh()
 
-  const [chatOpen, setChatOpen] = useState(false)
+  // One slot rather than a boolean per panel: they occupy the same edge of the
+  // screen, so opening one has to close the other.
+  const [panel, setPanel] = useState<'chat' | 'channels' | null>(null)
   const [readCount, setReadCount] = useState(0)
   const invited = useRef(false)
+  const chatOpen = panel === 'chat'
 
   // An invite link carries the host's id in the fragment. Dial it once, as
   // soon as the broker has given us an id of our own to dial from.
@@ -33,8 +37,15 @@ export function App() {
     if (chatOpen) setReadCount(mesh.messages.length)
   }, [chatOpen, mesh.messages.length])
 
-  const toggleChat = useCallback(() => setChatOpen((open) => !open), [])
-  const closeChat = useCallback(() => setChatOpen(false), [])
+  const toggleChat = useCallback(
+    () => setPanel((current) => (current === 'chat' ? null : 'chat')),
+    [],
+  )
+  const toggleChannels = useCallback(
+    () => setPanel((current) => (current === 'channels' ? null : 'channels')),
+    [],
+  )
+  const closePanel = useCallback(() => setPanel(null), [])
 
   const unread = Math.max(0, mesh.messages.length - readCount)
   const connected = mesh.peers.filter((peer) => peer.status === 'connected').length
@@ -67,15 +78,18 @@ export function App() {
         </footer>
       </div>
 
-      <ChatPanel messages={mesh.messages} open={chatOpen} onClose={closeChat} />
+      <ChatPanel messages={mesh.messages} open={chatOpen} onClose={closePanel} />
+      <ChannelsPanel open={panel === 'channels'} onClose={closePanel} />
 
       <ControlBar
         micStream={mesh.localMic}
         micMuted={mesh.micMuted}
         sharing={mesh.sharing}
         chatOpen={chatOpen}
+        channelsOpen={panel === 'channels'}
         unreadCount={unread}
         onToggleChat={toggleChat}
+        onToggleChannels={toggleChannels}
       />
     </div>
   )

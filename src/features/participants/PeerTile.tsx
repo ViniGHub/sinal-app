@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 
+import { useChannels } from '@/features/channels/useChannels'
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
@@ -14,9 +15,12 @@ const STATUS_LABEL: Record<RemotePeer['status'], string> = {
 
 export function PeerTile({ peer }: { peer: RemotePeer }) {
   const session = useSession()
+  const { isSaved, save } = useChannels()
   const videoRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
   const frameRef = useRef<HTMLDivElement>(null)
+
+  const saved = isSaved(peer.id)
 
   const expand = () => {
     void frameRef.current?.requestFullscreen?.().catch(() => {})
@@ -56,13 +60,27 @@ export function PeerTile({ peer }: { peer: RemotePeer }) {
         </div>
       </div>
 
-      <button
-        type="button"
-        className={styles.disconnect}
-        onClick={() => session.disconnect(peer.id)}
-      >
-        desconectar
-      </button>
+      <div className={styles.rowActions}>
+        <button
+          type="button"
+          className={styles.disconnect}
+          onClick={() => session.disconnect(peer.id)}
+        >
+          desconectar
+        </button>
+
+        {/* Saving is only offered from a live connection: a bookmark you never
+            reached is a bookmark that will not work. */}
+        <button
+          type="button"
+          className={`${styles.save} ${saved ? styles.saved : ''}`}
+          disabled={saved}
+          onClick={() => save(peer.id, peer.name)}
+          title={saved ? 'já está nos seus canais' : 'salvar nos seus canais'}
+        >
+          {saved ? '★ salvo' : '☆ salvar'}
+        </button>
+      </div>
     </article>
   )
 }
