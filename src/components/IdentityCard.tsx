@@ -1,0 +1,61 @@
+import { useEffect, useState } from 'react'
+
+import { useCopy } from '../hooks/useCopy'
+import { useSession } from '../hooks/useMesh'
+import { buildInviteUrl } from '../lib/invite'
+import { MAX_NAME_LENGTH } from '../lib/protocol'
+import styles from './IdentityCard.module.css'
+
+interface IdentityCardProps {
+  selfId: string | null
+  selfName: string
+}
+
+/**
+ * Who you are in the room: an editable display name, your stable id, and a
+ * one-click invite link that carries the id in the URL fragment.
+ */
+export function IdentityCard({ selfId, selfName }: IdentityCardProps) {
+  const session = useSession()
+  const [draft, setDraft] = useState(selfName)
+  const [copied, copy] = useCopy()
+
+  // Keep the field in step when the name changes from outside this component
+  // (restored from storage on boot, for instance).
+  useEffect(() => setDraft(selfName), [selfName])
+
+  const commit = () => session.setName(draft)
+
+  return (
+    <div className={styles.card}>
+      <label className={styles.field}>
+        <span className={styles.label}>seu nome</span>
+        <input
+          className={styles.nameInput}
+          value={draft}
+          maxLength={MAX_NAME_LENGTH}
+          placeholder="como te chamar?"
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+        />
+      </label>
+
+      <div className={styles.field}>
+        <span className={styles.label}>seu ID</span>
+        <code className={styles.id}>{selfId ?? 'gerando…'}</code>
+      </div>
+
+      <button
+        type="button"
+        className={styles.copy}
+        disabled={!selfId}
+        onClick={() => selfId && copy(buildInviteUrl(selfId))}
+      >
+        {copied ? 'link copiado' : 'copiar convite'}
+      </button>
+    </div>
+  )
+}

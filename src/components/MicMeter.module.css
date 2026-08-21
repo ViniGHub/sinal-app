@@ -1,0 +1,17 @@
+.meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.meter i {
+  display: block;
+  width: 3px;
+  background: var(--signal);
+  border-radius: 1px;
+  opacity: 0.85;
+  transition: height 0.08s linear;
+}
+
+.muted i { background: var(--faint); }

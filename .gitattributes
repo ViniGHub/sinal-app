@@ -1,0 +1,7 @@
+# Normalise line endings in the repository so a Windows checkout and the Linux
+# CI runner see identical content.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

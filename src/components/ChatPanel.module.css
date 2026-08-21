@@ -1,0 +1,123 @@
+.panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: var(--control-bar-height);
+  width: min(340px, 100vw);
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 var(--space-1);
+}
+
+.close:hover { color: var(--text); }
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hint {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 0;
+}
+
+.message {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+}
+
+.mine {
+  background: var(--panel-3);
+  border-color: var(--signal-dim);
+}
+
+.byline {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+}
+
+.author {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.compose {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.input:focus { border-color: var(--signal-dim); }
+
+.send {
+  background: var(--signal);
+  color: #06120c;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .panel { width: 100vw; }
+}

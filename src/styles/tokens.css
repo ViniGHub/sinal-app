@@ -1,0 +1,47 @@
+/*
+ * Design tokens. Every component reads colour, spacing and radius from here so
+ * a change to the palette never means hunting through component stylesheets.
+ */
+:root {
+  --bg: #0c0f13;
+  --panel: #12161c;
+  --panel-2: #171c24;
+  --panel-3: #1d232c;
+  --line: #232a33;
+  --line-strong: #3a4450;
+
+  --text: #e9edf1;
+  --muted: #7c8794;
+  --faint: #4c5560;
+
+  --signal: #3ddc97;
+  --signal-dim: #1f7a54;
+  --signal-glow: rgba(61, 220, 151, 0.12);
+  --warn: #f5a623;
+  --danger: #e5484d;
+
+  --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --space-6: 30px;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-pill: 999px;
+
+  --control-bar-height: 76px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

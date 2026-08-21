@@ -1,0 +1,34 @@
+.row {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.input {
+  flex: 1;
+  min-width: 220px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 12px var(--space-4);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+}
+
+.input:focus { border-color: var(--signal-dim); }
+.input::placeholder { color: var(--faint); }
+
+.button {
+  background: var(--signal);
+  color: #06120c;
+  border: none;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.button:hover:not(:disabled) { filter: brightness(1.08); }

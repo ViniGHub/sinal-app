@@ -1,0 +1,29 @@
+.boot {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.boot p { margin: 0; }
+.boot small { color: var(--faint); font-size: 11px; }
+
+.pulse {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--signal);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 6px var(--signal-glow); }
+}

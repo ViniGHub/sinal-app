@@ -1,0 +1,117 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  MAX_CHAT_LENGTH,
+  MAX_NAME_LENGTH,
+  MAX_ROSTER_SIZE,
+  isValidPeerId,
+  parseWireMessage,
+  sanitizeName,
+  shortId,
+  shouldInitiate,
+} from '../protocol'
+
+describe('isValidPeerId', () => {
+  it('accepts the ids the broker actually issues', () => {
+    expect(isValidPeerId('sinal-abc23xyz9k7m')).toBe(true)
+    expect(isValidPeerId('a_b-C9')).toBe(true)
+  })
+
+  it('rejects anything that could smuggle markup or a path', () => {
+    expect(isValidPeerId('<img src=x onerror=alert(1)>')).toBe(false)
+    expect(isValidPeerId('../../etc/passwd')).toBe(false)
+    expect(isValidPeerId('abc')).toBe(false) // too short
+    expect(isValidPeerId('x'.repeat(65))).toBe(false)
+    expect(isValidPeerId(null)).toBe(false)
+    expect(isValidPeerId(42)).toBe(false)
+  })
+})
+
+describe('parseWireMessage', () => {
+  it('drops values that are not messages at all', () => {
+    expect(parseWireMessage(null)).toBeNull()
+    expect(parseWireMessage('hello')).toBeNull()
+    expect(parseWireMessage(7)).toBeNull()
+    expect(parseWireMessage({})).toBeNull()
+  })
+
+  it('ignores message types it does not know', () => {
+    expect(parseWireMessage({ t: 'kick', target: 'someone' })).toBeNull()
+  })
+
+  it('coerces missing hello fields instead of trusting them', () => {
+    expect(parseWireMessage({ t: 'hello' })).toEqual({
+      t: 'hello',
+      name: '',
+      micMuted: false,
+      sharing: false,
+      peers: [],
+    })
+  })
+
+  it('keeps only well-formed ids out of a roster', () => {
+    const parsed = parseWireMessage({
+      t: 'roster',
+      peers: ['sinal-aaaaaaaaaaaa', '<script>', 42, null, 'sinal-bbbbbbbbbbbb'],
+    })
+    expect(parsed).toMatchObject({ peers: ['sinal-aaaaaaaaaaaa', 'sinal-bbbbbbbbbbbb'] })
+  })
+
+  it('caps roster size so one peer cannot flood the mesh', () => {
+    const peers = Array.from({ length: MAX_ROSTER_SIZE + 20 }, (_, i) =>
+      `sinal-${String(i).padStart(12, '0')}`,
+    )
+    const parsed = parseWireMessage({ t: 'roster', peers })
+    expect(parsed?.t).toBe('roster')
+    expect(parsed && 'peers' in parsed ? parsed.peers : []).toHaveLength(MAX_ROSTER_SIZE)
+  })
+
+  it('truncates names and strips control characters', () => {
+    const parsed = parseWireMessage({ t: 'name', name: `  ${'z'.repeat(80)}  ` })
+    expect(parsed).toEqual({ t: 'name', name: 'z'.repeat(MAX_NAME_LENGTH) })
+  })
+
+  it('treats non-boolean mute flags as unmuted', () => {
+    expect(parseWireMessage({ t: 'mic', micMuted: 'yes' })).toEqual({ t: 'mic', micMuted: false })
+    expect(parseWireMessage({ t: 'mic', micMuted: true })).toEqual({ t: 'mic', micMuted: true })
+  })
+
+  it('drops empty chat and clamps long chat', () => {
+    expect(parseWireMessage({ t: 'chat', text: '   ' })).toBeNull()
+    const parsed = parseWireMessage({ t: 'chat', text: 'a'.repeat(MAX_CHAT_LENGTH + 50), at: 5 })
+    expect((parsed as { text: string }).text).toHaveLength(MAX_CHAT_LENGTH)
+  })
+
+  it('replaces a non-numeric timestamp rather than propagating NaN', () => {
+    expect(parseWireMessage({ t: 'chat', text: 'oi', at: 'agora' })).toEqual({
+      t: 'chat',
+      text: 'oi',
+      at: 0,
+    })
+  })
+})
+
+describe('shouldInitiate', () => {
+  it('picks exactly one side of every pair', () => {
+    const a = 'sinal-aaaaaaaaaaaa'
+    const b = 'sinal-bbbbbbbbbbbb'
+    expect(shouldInitiate(a, b)).toBe(true)
+    expect(shouldInitiate(b, a)).toBe(false)
+    // The invariant that prevents duplicate calls: never both, never neither.
+    expect(shouldInitiate(a, b)).not.toBe(shouldInitiate(b, a))
+  })
+})
+
+describe('shortId', () => {
+  it('shortens long ids and leaves small ones alone', () => {
+    expect(shortId('sinal-abc23xyz')).toBe('sina…xyz')
+    expect(shortId('abcd')).toBe('abcd')
+  })
+})
+
+describe('sanitizeName', () => {
+  it('returns an empty string for anything that is not text', () => {
+    expect(sanitizeName(undefined)).toBe('')
+    expect(sanitizeName({ toString: () => 'x' })).toBe('')
+  })
+})

@@ -1,0 +1,63 @@
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.nameInput {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 2px 0;
+  width: 150px;
+  outline: none;
+}
+
+.nameInput:focus { border-bottom-color: var(--signal-dim); }
+.nameInput::placeholder { color: var(--faint); }
+
+.id {
+  color: var(--signal);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+  max-width: 240px;
+}
+
+.copy {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.copy:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}

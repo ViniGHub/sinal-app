@@ -1,0 +1,119 @@
+.tile {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+}
+
+.screen {
+  aspect-ratio: 16 / 10;
+  background: #05070a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #05070a;
+}
+
+.placeholder {
+  color: #3a4450;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+  padding: var(--space-3);
+  margin: 0;
+}
+
+.expand {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  background: rgba(5, 7, 10, 0.75);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.screen:hover .expand,
+.expand:focus-visible { opacity: 1; }
+
+.meta {
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.who { min-width: 0; }
+
+.name {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.id {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+}
+
+.dotLive {
+  background: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-glow);
+}
+
+.disconnect {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 4px 8px;
+  margin: 0 var(--space-3) var(--space-3);
+  align-self: flex-start;
+}
+
+.disconnect:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
