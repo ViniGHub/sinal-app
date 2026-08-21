@@ -6,19 +6,29 @@
  * before the message reaches application code.
  */
 
+import type { AttentionState } from '@/features/participants/types'
+
 export const MAX_NAME_LENGTH = 24
 export const MAX_CHAT_LENGTH = 800
 /** Guards against a peer flooding us with a huge roster. */
 export const MAX_ROSTER_SIZE = 64
 
+interface Presence {
+  name: string
+  micMuted: boolean
+  sharing: boolean
+  attention: AttentionState
+}
+
 export type WireMessage =
   /** First message on a fresh connection: who I am and who I already know. */
-  | { t: 'hello'; name: string; micMuted: boolean; sharing: boolean; peers: string[] }
+  | ({ t: 'hello'; peers: string[] } & Presence)
   /** Reply to `hello`, plus any later roster change. */
-  | { t: 'roster'; name: string; micMuted: boolean; sharing: boolean; peers: string[] }
+  | ({ t: 'roster'; peers: string[] } & Presence)
   | { t: 'name'; name: string }
   | { t: 'mic'; micMuted: boolean }
   | { t: 'screen'; sharing: boolean }
+  | { t: 'attention'; attention: AttentionState }
   | { t: 'chat'; text: string; at: number }
   /** Sent by a channel anchor to whoever just knocked: who is inside. */
   | { t: 'members'; peers: string[] }
@@ -51,6 +61,18 @@ export function sanitizeName(value: unknown): string {
   return cleanText(value, MAX_NAME_LENGTH)
 }
 
+const ATTENTION_STATES: readonly AttentionState[] = ['unknown', 'focused', 'visible', 'hidden']
+
+/**
+ * Anything we do not recognise becomes 'unknown' rather than a guess. A peer
+ * running a newer build might report a state this version has never heard of,
+ * and inventing "focused" would tell the user someone is watching when we have
+ * no idea.
+ */
+function cleanAttention(value: unknown): AttentionState {
+  return ATTENTION_STATES.includes(value as AttentionState) ? (value as AttentionState) : 'unknown'
+}
+
 /**
  * Turn an untrusted value from the data channel into a `WireMessage`, or null
  * if it is not one we recognise. Unknown message types are dropped rather than
@@ -68,6 +90,7 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
         name: sanitizeName(msg['name']),
         micMuted: msg['micMuted'] === true,
         sharing: msg['sharing'] === true,
+        attention: cleanAttention(msg['attention']),
         peers: cleanRoster(msg['peers']),
       }
     case 'members':
@@ -78,6 +101,8 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'mic', micMuted: msg['micMuted'] === true }
     case 'screen':
       return { t: 'screen', sharing: msg['sharing'] === true }
+    case 'attention':
+      return { t: 'attention', attention: cleanAttention(msg['attention']) }
     case 'chat': {
       const text = cleanText(msg['text'], MAX_CHAT_LENGTH)
       if (!text) return null

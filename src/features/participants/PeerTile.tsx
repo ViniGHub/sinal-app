@@ -2,13 +2,31 @@ import { useChannels } from '@/features/channels/useChannels'
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
-import type { RemotePeer } from './types'
+import type { AttentionState, RemotePeer } from './types'
 import styles from './PeerTile.module.css'
 
 const STATUS_LABEL: Record<RemotePeer['status'], string> = {
   connecting: 'conectando',
   connected: 'conectado',
   closed: 'desconectado',
+}
+
+/**
+ * Wording matters here: the browser can prove someone is *not* looking, never
+ * that they are. "na aba" says where the tab is, not where their eyes are.
+ */
+const ATTENTION_LABEL: Record<AttentionState, string> = {
+  unknown: '',
+  focused: 'na aba',
+  visible: 'sem foco',
+  hidden: 'em outra aba',
+}
+
+const ATTENTION_TITLE: Record<AttentionState, string> = {
+  unknown: '',
+  focused: 'a aba do Sinal está visível e em foco',
+  visible: 'a aba está visível, mas a pessoa está em outra janela',
+  hidden: 'a aba está em segundo plano — não está vendo a tela compartilhada',
 }
 
 interface PeerTileProps {
@@ -49,12 +67,23 @@ export function PeerTile({ peer, onExpand }: PeerTileProps) {
           <span className={styles.id}>{shortId(peer.id)}</span>
         </div>
 
-        <div className={styles.state}>
-          <span
-            className={`${styles.dot} ${peer.status === 'connected' ? styles.dotLive : ''}`}
-            aria-hidden="true"
-          />
-          <span>{peer.micMuted ? 'mudo' : STATUS_LABEL[peer.status]}</span>
+        <div className={styles.status}>
+          <span className={styles.state}>
+            <span
+              className={`${styles.dot} ${peer.status === 'connected' ? styles.dotLive : ''}`}
+              aria-hidden="true"
+            />
+            {peer.micMuted ? 'mudo' : STATUS_LABEL[peer.status]}
+          </span>
+
+          {peer.attention !== 'unknown' && (
+            <span
+              className={`${styles.attention} ${styles[peer.attention]}`}
+              title={ATTENTION_TITLE[peer.attention]}
+            >
+              {ATTENTION_LABEL[peer.attention]}
+            </span>
+          )}
         </div>
       </div>
 

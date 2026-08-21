@@ -16,7 +16,8 @@ import {
   createSilentAudioStream,
   stopStream,
 } from '@/features/media/capture'
-import type { RemotePeer } from '@/features/participants/types'
+import type { AttentionState, RemotePeer } from '@/features/participants/types'
+import { readAttention, watchAttention } from './attention'
 import { buildPeerConfig } from './ice'
 import {
   MAX_CHAT_LENGTH,
@@ -117,6 +118,8 @@ export class MeshSession {
   #selfName: string = loadDisplayName()
   #micMuted = false
   #sharing = false
+  #attention: AttentionState = 'focused'
+  #stopAttention: (() => void) | null = null
   #status: SessionStatus = { kind: 'busy', message: 'iniciando…' }
 
   #snapshot: MeshSnapshot
@@ -156,6 +159,12 @@ export class MeshSession {
       )
     }
 
+    this.#attention = readAttention()
+    this.#stopAttention = watchAttention((state) => {
+      this.#attention = state
+      this.#broadcast({ t: 'attention', attention: state })
+    })
+
     this.#openPeer(loadPeerId())
   }
 
@@ -163,6 +172,9 @@ export class MeshSession {
   destroy(): void {
     if (this.#destroyed) return
     this.#destroyed = true
+
+    this.#stopAttention?.()
+    this.#stopAttention = null
 
     for (const record of this.#records.values()) this.#teardownRecord(record)
     this.#records.clear()
@@ -580,6 +592,7 @@ export class MeshSession {
         name: this.#displayName(),
         micMuted: this.#micMuted,
         sharing: this.#sharing,
+        attention: this.#attention,
         peers: this.#knownIds(),
       })
       this.#maybeCallAudio(peerId)
@@ -600,6 +613,7 @@ export class MeshSession {
         this.#patch(peerId, {
           name: message.name || shortId(peerId),
           micMuted: message.micMuted,
+          attention: message.attention,
           status: 'connected',
         })
         if (!message.sharing) this.#patch(peerId, { screenStream: null })
@@ -612,6 +626,7 @@ export class MeshSession {
               name: this.#displayName(),
               micMuted: this.#micMuted,
               sharing: this.#sharing,
+              attention: this.#attention,
               peers: this.#knownIds(),
             })
           }
@@ -623,6 +638,9 @@ export class MeshSession {
         return
       case 'mic':
         this.#patch(peerId, { micMuted: message.micMuted })
+        return
+      case 'attention':
+        this.#patch(peerId, { attention: message.attention })
         return
       case 'screen':
         // The stream itself arrives on the media call; this only handles the
@@ -745,6 +763,9 @@ export class MeshSession {
         name: shortId(peerId),
         status: 'connecting',
         micMuted: false,
+        // Not 'focused': we have not heard from them yet, and claiming they
+        // are watching would be worse than admitting we do not know.
+        attention: 'unknown',
         audioStream: null,
         screenStream: null,
       },

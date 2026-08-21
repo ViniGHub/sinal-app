@@ -78,6 +78,14 @@
   color: var(--faint);
 }
 
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
 .state {
   display: flex;
   align-items: center;
@@ -85,7 +93,32 @@
   font-size: 11px;
   color: var(--muted);
   font-family: var(--font-mono);
-  flex-shrink: 0;
+}
+
+.attention {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.focused {
+  color: var(--signal);
+  border-color: var(--signal-dim);
+}
+
+.visible {
+  color: var(--warn);
+  border-color: rgba(245, 166, 35, 0.4);
+}
+
+/* The one state the browser can assert with confidence, so it gets the
+   loudest treatment: they are definitely not seeing a shared screen. */
+.hidden {
+  color: var(--danger);
+  border-color: rgba(229, 72, 77, 0.45);
 }
 
 .dot {

@@ -1,5 +1,18 @@
 export type PeerStatus = 'connecting' | 'connected' | 'closed'
 
+/**
+ * How present someone is at their browser.
+ *
+ * Reliable in one direction only: 'hidden' proves they are *not* seeing a
+ * shared screen, while 'focused' only means they could be. Nothing here can
+ * tell whether a person is actually looking at their monitor, so the UI should
+ * report what the browser reports and claim no more than that.
+ *
+ * 'unknown' covers peers we have not heard from yet — guessing 'focused' would
+ * be an assertion we cannot back.
+ */
+export type AttentionState = 'unknown' | 'focused' | 'visible' | 'hidden'
+
 /** A remote participant, as far as the local session can tell. */
 export interface RemotePeer {
   id: string
@@ -8,6 +21,8 @@ export interface RemotePeer {
   status: PeerStatus
   /** Whether they told us their microphone is muted. */
   micMuted: boolean
+  /** Whether their tab is in front of them, as far as their browser can tell. */
+  attention: AttentionState
   /** Their voice, or null while the audio call is still being set up. */
   audioStream: MediaStream | null
   /** Their screen, or null when they are not sharing. */

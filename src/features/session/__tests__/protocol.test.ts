@@ -45,6 +45,7 @@ describe('parseWireMessage', () => {
       name: '',
       micMuted: false,
       sharing: false,
+      attention: 'unknown',
       peers: [],
     })
   })
@@ -74,6 +75,24 @@ describe('parseWireMessage', () => {
   it('treats non-boolean mute flags as unmuted', () => {
     expect(parseWireMessage({ t: 'mic', micMuted: 'yes' })).toEqual({ t: 'mic', micMuted: false })
     expect(parseWireMessage({ t: 'mic', micMuted: true })).toEqual({ t: 'mic', micMuted: true })
+  })
+
+  it('accepts the attention states it knows', () => {
+    for (const attention of ['focused', 'visible', 'hidden'] as const) {
+      expect(parseWireMessage({ t: 'attention', attention })).toEqual({ t: 'attention', attention })
+    }
+  })
+
+  it('falls back to unknown for any attention value it does not recognise', () => {
+    // A newer build could report a state this version has never heard of.
+    // Guessing 'focused' would tell the user someone is watching their screen
+    // when we have no idea — 'unknown' renders nothing instead.
+    for (const attention of ['watching', '', null, 7, true]) {
+      expect(parseWireMessage({ t: 'attention', attention })).toEqual({
+        t: 'attention',
+        attention: 'unknown',
+      })
+    }
   })
 
   it('drops empty chat and clamps long chat', () => {

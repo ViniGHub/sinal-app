@@ -11,6 +11,9 @@ interface PeerGridProps {
 }
 
 export function PeerGrid({ peers, localScreen, onExpand }: PeerGridProps) {
+  const connected = peers.filter((peer) => peer.status === 'connected')
+  const watching = connected.filter((peer) => peer.attention === 'focused').length
+
   if (peers.length === 0 && !localScreen) {
     return (
       <p className={styles.empty}>
@@ -21,7 +24,14 @@ export function PeerGrid({ peers, localScreen, onExpand }: PeerGridProps) {
 
   return (
     <div className={styles.grid}>
-      {localScreen && <LocalPreview stream={localScreen} onExpand={onExpand} />}
+      {localScreen && (
+        <LocalPreview
+          stream={localScreen}
+          onExpand={onExpand}
+          watching={watching}
+          audience={connected.length}
+        />
+      )}
       {peers.map((peer) => (
         <PeerTile key={peer.id} peer={peer} onExpand={onExpand} />
       ))}

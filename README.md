@@ -101,6 +101,28 @@ sobrevive.
 `Peer`; [`MeshSession.joinChannel`](src/features/session/MeshSession.ts)
 coordena bater na porta, discar os membros e reassumir a âncora.
 
+### Atenção dos participantes
+
+Compartilhar a tela sem saber se alguém está olhando é desconfortável, então
+cada participante informa aos demais, pelo data channel, o estado da própria
+aba. São dois sinais independentes do navegador, e eles respondem perguntas
+diferentes:
+
+| estado | o que o navegador diz | rótulo |
+|---|---|---|
+| `focused` | aba visível **e** com foco | na aba |
+| `visible` | aba visível, janela sem foco | sem foco |
+| `hidden` | aba em segundo plano ou minimizada | em outra aba |
+
+O sinal é confiável **em uma direção só**: `hidden` prova que a pessoa *não*
+está vendo a tela compartilhada; `focused` apenas diz que ela poderia estar —
+a aba pode estar num segundo monitor para o qual ninguém olha. Os rótulos
+falam de onde está a aba, nunca de onde estão os olhos.
+
+Um peer de quem ainda não ouvimos nada fica `unknown` e não mostra nada. Supor
+`focused` seria afirmar algo que não sabemos, exatamente no ponto em que o
+usuário confia na informação.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta
