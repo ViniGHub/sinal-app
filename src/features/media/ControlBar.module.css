@@ -15,6 +15,13 @@
   z-index: 10;
 }
 
+/* A capture button and its device picker, kept together when the bar wraps. */
+.group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .button {
   display: flex;
   align-items: center;

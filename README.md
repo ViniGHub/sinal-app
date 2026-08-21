@@ -221,6 +221,27 @@ Se a fonte em destaque some — a pessoa parou de compartilhar, ou desligou a
 câmera — o destaque cai para a que sobrou, em vez de fechar e devolver o
 espectador à grade.
 
+### Trocar de microfone ou câmera
+
+Um seletor ao lado de cada botão de captura lista o hardware disponível, e ele
+some quando não há entre o que escolher.
+
+A troca usa `replaceTrack` no `RTCRtpSender`, que muda o que um remetente
+transmite **sem renegociar** — a chamada não cai e ninguém ouve um vão.
+Rechamar cada peer com um stream novo derrubaria e reconstruiria cada conversa.
+
+Três detalhes que essa troca exige: o estado de mudo é reaplicado à faixa nova,
+que nasce habilitada, senão trocar de microfone tiraria alguém do mudo sem
+querer; o dispositivo antigo só é liberado depois da troca, para que ele
+continue vivo até o novo estar de fato carregando a chamada; e o `deviceId` vai
+como `ideal`, não `exact`, porque um ID lembrado pode apontar para hardware
+desconectado e é melhor cair no padrão do que não capturar nada.
+
+Os rótulos dos dispositivos só ficam legíveis depois que a permissão
+correspondente foi concedida, então a lista de câmeras aparece genérica
+("Câmera 1", "Câmera 2") até a câmera ser ligada uma vez. As listas são
+relidas em `devicechange` e a cada vez que uma captura começa ou para.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

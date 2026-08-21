@@ -18,6 +18,12 @@ import {
   createSilentAudioStream,
   stopStream,
 } from '@/features/media/capture'
+import {
+  loadPreferredCamera,
+  loadPreferredMic,
+  savePreferredCamera,
+  savePreferredMic,
+} from '@/features/media/devices'
 import type { AttentionState, Occupant, RemotePeer } from '@/features/participants/types'
 import { readAttention, watchAttention } from './attention'
 import { isAdminName } from './moderation'
@@ -158,6 +164,10 @@ export class MeshSession {
   #attention: AttentionState = 'focused'
   #stopAttention: (() => void) | null = null
 
+  /** Remembered device choices, applied whenever a capture is (re)started. */
+  #micDeviceId: string | null = loadPreferredMic()
+  #cameraDeviceId: string | null = loadPreferredCamera()
+
   /** The channel's shared name, plus what is needed to order claims about it. */
   #channelName = ''
   #channelNameAt = 0
@@ -195,7 +205,7 @@ export class MeshSession {
     if (this.#peer || this.#destroyed) return
 
     try {
-      this.#mic = await acquireMicrophone()
+      this.#mic = await acquireMicrophone(this.#micDeviceId)
       this.#applyMicMute()
     } catch (error) {
       // A missing microphone is not fatal: join as a listener. Silence is sent
@@ -541,12 +551,98 @@ export class MeshSession {
     else void this.startSharing()
   }
 
+  /**
+   * Swaps the microphone without dropping a single call.
+   *
+   * `replaceTrack` changes what a sender is transmitting in place, so no
+   * renegotiation happens and nobody hears a gap. Re-calling every peer with a
+   * new stream would tear each conversation down and build it back up.
+   */
+  async switchMicrophone(deviceId: string): Promise<void> {
+    if (this.#destroyed) return
+
+    let stream: MediaStream
+    try {
+      stream = await acquireMicrophone(deviceId)
+    } catch (error) {
+      if (error instanceof MediaError && !error.cancelled) this.#setStatus('error', error.message)
+      return
+    }
+    if (this.#destroyed) {
+      stopStream(stream)
+      return
+    }
+
+    const previous = this.#mic
+    this.#mic = stream
+    this.#micDeviceId = deviceId
+    savePreferredMic(deviceId)
+    // The new track arrives enabled; carry the mute state across so switching
+    // devices never un-mutes someone by surprise.
+    this.#applyMicMute()
+
+    const track = stream.getAudioTracks()[0] ?? null
+    for (const record of this.#records.values()) {
+      this.#replaceTrack(record.audioCall, 'audio', track)
+    }
+
+    // Released only after the swap, so the old device stays live until the new
+    // one is actually carrying the call.
+    stopStream(previous)
+    this.#publish()
+  }
+
+  /** Swaps the camera in place. Remembers the choice even while it is off. */
+  async switchCamera(deviceId: string): Promise<void> {
+    if (this.#destroyed) return
+
+    this.#cameraDeviceId = deviceId
+    savePreferredCamera(deviceId)
+    if (!this.#camera) {
+      // Nothing to swap; the preference applies the next time it is switched on.
+      this.#publish()
+      return
+    }
+
+    let stream: MediaStream
+    try {
+      stream = await acquireCamera(deviceId)
+    } catch (error) {
+      if (error instanceof MediaError && !error.cancelled) this.#setStatus('error', error.message)
+      return
+    }
+    if (this.#destroyed || !this.#camera) {
+      stopStream(stream)
+      return
+    }
+
+    const previous = this.#camera
+    this.#camera = stream
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => this.stopCamera())
+
+    const track = stream.getVideoTracks()[0] ?? null
+    for (const record of this.#records.values()) {
+      this.#replaceTrack(record.cameraOut, 'video', track)
+    }
+
+    stopStream(previous)
+    this.#publish()
+  }
+
+  #replaceTrack(call: MediaConnection | null, kind: 'audio' | 'video', track: MediaStreamTrack | null): void {
+    if (!call || !track) return
+    const sender = call.peerConnection?.getSenders().find((candidate) => candidate.track?.kind === kind)
+    // Fails when the connection is already closing; the peer will get the new
+    // track from a fresh call if they reconnect, so there is nothing to do.
+    void sender?.replaceTrack(track).catch(() => {})
+  }
+
   async startCamera(): Promise<void> {
     if (this.#camera || this.#destroyed) return
 
     let stream: MediaStream
     try {
-      stream = await acquireCamera()
+      stream = await acquireCamera(this.#cameraDeviceId)
     } catch (error) {
       if (error instanceof MediaError && !error.cancelled) this.#setStatus('error', error.message)
       return
@@ -1267,6 +1363,8 @@ export class MeshSession {
       localScreen: this.#screen,
       localCamera: this.#camera,
       localMic: this.#mic,
+      micDeviceId: this.#micDeviceId,
+      cameraDeviceId: this.#cameraDeviceId,
       messages: this.#messages,
     }
   }

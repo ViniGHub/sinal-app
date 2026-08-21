@@ -56,5 +56,8 @@ export interface MeshSnapshot {
   localCamera: MediaStream | null
   /** Our own microphone capture, for the level meter. */
   localMic: MediaStream | null
+  /** Chosen capture devices, or null while the browser default is in use. */
+  micDeviceId: string | null
+  cameraDeviceId: string | null
   messages: ChatMessage[]
 }

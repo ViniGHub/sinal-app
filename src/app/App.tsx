@@ -166,6 +166,8 @@ export function App() {
         micMuted={mesh.micMuted}
         sharing={mesh.sharing}
         cameraOn={mesh.localCamera !== null}
+        micDeviceId={mesh.micDeviceId}
+        cameraDeviceId={mesh.cameraDeviceId}
         chatOpen={chatOpen}
         channelsOpen={panel === 'channels'}
         unreadCount={unread}

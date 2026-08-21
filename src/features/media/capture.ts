@@ -15,25 +15,46 @@ export class MediaError extends Error {
   }
 }
 
-const MIC_CONSTRAINTS: MediaStreamConstraints = {
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-  },
-  video: false,
+/**
+ * `ideal` rather than `exact` for the device: a remembered id can point at
+ * hardware that has since been unplugged, and we would rather fall back to the
+ * default microphone than fail to capture anything at all.
+ */
+function micConstraints(deviceId: string | null): MediaStreamConstraints {
+  return {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
+    },
+    video: false,
+  }
+}
+
+function cameraConstraints(deviceId: string | null): MediaStreamConstraints {
+  return {
+    video: {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      ...(deviceId ? { deviceId: { ideal: deviceId } } : { facingMode: 'user' }),
+    },
+    // The microphone is captured separately and already flows on its own call;
+    // asking for audio here would send everyone a second copy of your voice.
+    audio: false,
+  }
 }
 
 function isCancellation(error: unknown): boolean {
   return error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'AbortError')
 }
 
-export async function acquireMicrophone(): Promise<MediaStream> {
+export async function acquireMicrophone(deviceId: string | null = null): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new MediaError('Este navegador não expõe acesso ao microfone.', false)
   }
   try {
-    return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+    return await navigator.mediaDevices.getUserMedia(micConstraints(deviceId))
   } catch (error) {
     if (isCancellation(error)) {
       throw new MediaError('Permissão de microfone negada — você entrou apenas como ouvinte.', true)
@@ -42,23 +63,12 @@ export async function acquireMicrophone(): Promise<MediaStream> {
   }
 }
 
-const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  video: {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    facingMode: 'user',
-  },
-  // The microphone is captured separately and already flows on its own call;
-  // asking for audio here would send everyone a second copy of your voice.
-  audio: false,
-}
-
-export async function acquireCamera(): Promise<MediaStream> {
+export async function acquireCamera(deviceId: string | null = null): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new MediaError('Este navegador não expõe acesso à câmera.', false)
   }
   try {
-    return await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
+    return await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId))
   } catch (error) {
     if (isCancellation(error)) {
       throw new MediaError('Permissão de câmera negada.', true)

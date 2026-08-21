@@ -1,5 +1,7 @@
 import { useSession } from '@/features/session/useMesh'
+import { DeviceMenu } from './DeviceMenu'
 import { MicMeter } from './MicMeter'
+import { useMediaDevices } from './useMediaDevices'
 import { useMicLevel } from './useMicLevel'
 import styles from './ControlBar.module.css'
 
@@ -8,6 +10,9 @@ interface ControlBarProps {
   micMuted: boolean
   sharing: boolean
   cameraOn: boolean
+  /** Chosen capture devices, or null while the browser default is in use. */
+  micDeviceId: string | null
+  cameraDeviceId: string | null
   chatOpen: boolean
   channelsOpen: boolean
   unreadCount: number
@@ -22,6 +27,8 @@ export function ControlBar({
   micMuted,
   sharing,
   cameraOn,
+  micDeviceId,
+  cameraDeviceId,
   chatOpen,
   channelsOpen,
   unreadCount,
@@ -33,28 +40,50 @@ export function ControlBar({
   const level = useMicLevel(micStream, micMuted)
   const hasMic = micStream !== null
 
+  // Labels only become readable once the matching device has been opened, so
+  // the lists are re-read whenever a capture starts or stops.
+  const devices = useMediaDevices(`${hasMic}:${cameraOn}`)
+
   return (
     <div className={styles.bar}>
-      <button
-        type="button"
-        className={`${styles.button} ${micMuted ? styles.muted : styles.live}`}
-        onClick={() => session.setMicMuted(!micMuted)}
-        disabled={!hasMic}
-        aria-pressed={micMuted}
-        title={hasMic ? undefined : 'nenhum microfone disponível'}
-      >
-        <span>{hasMic ? (micMuted ? 'Mic mudo' : 'Mic ativo') : 'Sem microfone'}</span>
-        <MicMeter level={level} muted={micMuted} />
-      </button>
+      <div className={styles.group}>
+        <button
+          type="button"
+          className={`${styles.button} ${micMuted ? styles.muted : styles.live}`}
+          onClick={() => session.setMicMuted(!micMuted)}
+          disabled={!hasMic}
+          aria-pressed={micMuted}
+          title={hasMic ? undefined : 'nenhum microfone disponível'}
+        >
+          <span>{hasMic ? (micMuted ? 'Mic mudo' : 'Mic ativo') : 'Sem microfone'}</span>
+          <MicMeter level={level} muted={micMuted} />
+        </button>
 
-      <button
-        type="button"
-        className={`${styles.button} ${cameraOn ? styles.live : ''}`}
-        onClick={() => session.toggleCamera()}
-        aria-pressed={cameraOn}
-      >
-        {cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
-      </button>
+        <DeviceMenu
+          devices={devices.microphones}
+          selected={micDeviceId}
+          label="Escolher microfone"
+          onSelect={(id) => void session.switchMicrophone(id)}
+        />
+      </div>
+
+      <div className={styles.group}>
+        <button
+          type="button"
+          className={`${styles.button} ${cameraOn ? styles.live : ''}`}
+          onClick={() => session.toggleCamera()}
+          aria-pressed={cameraOn}
+        >
+          {cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
+        </button>
+
+        <DeviceMenu
+          devices={devices.cameras}
+          selected={cameraDeviceId}
+          label="Escolher câmera"
+          onSelect={(id) => void session.switchCamera(id)}
+        />
+      </div>
 
       <button
         type="button"
