@@ -124,9 +124,16 @@ porque project pages ficam em `/<repo>/` e não na raiz.
 
 ## STUN e TURN
 
-Sem configuração, o app usa STUN público — suficiente para a maioria das
-conexões domésticas. STUN só conta ao peer qual é o endereço público dele; a
-mídia continua indo direto de um lado ao outro.
+Sem configuração, valem os defaults do próprio PeerJS: STUN do Google mais um
+TURN comunitário gratuito (`turn:eu-0.turn.peerjs.com`). Por isso
+`buildPeerConfig` devolve `undefined` quando nada foi configurado — informar
+`config` **substitui** o default inteiro em vez de somar a ele, e passar só
+STUN derrubaria aquele relay gratuito, piorando o NAT traversal.
+
+STUN só conta ao peer qual é o endereço público dele; a mídia continua indo
+direto de um lado ao outro. Configurar qualquer variável abaixo assume o
+controle total da lista, inclusive abrindo mão do TURN gratuito do PeerJS —
+o que é o certo quando você tem o seu.
 
 Quando não existe caminho direto (NAT simétrico, firewall corporativo, algumas
 operadoras móveis), é preciso um **TURN**, que retransmite a mídia. Isso custa

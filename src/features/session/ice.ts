@@ -53,14 +53,32 @@ export function buildIceServers(env: IceEnv): RTCIceServer[] {
   return servers
 }
 
+/** Whether the environment asks for anything other than PeerJS's defaults. */
+export function hasCustomIceConfig(env: IceEnv): boolean {
+  return (
+    splitUrls(env.VITE_STUN_URLS).length > 0 ||
+    hasTurn(env) ||
+    env.VITE_ICE_FORCE_RELAY === 'true'
+  )
+}
+
 /**
- * The object handed to `new Peer(id, { config })`.
+ * The object handed to `new Peer(id, { config })`, or undefined to leave
+ * PeerJS's own defaults alone.
+ *
+ * That distinction matters. PeerJS ships a DEFAULT_CONFIG carrying both Google
+ * STUN and a free community TURN (`turn:eu-0.turn.peerjs.com`), and supplying
+ * `config` replaces it wholesale rather than merging. Returning undefined when
+ * nothing is configured keeps that free relay in place instead of silently
+ * downgrading every user to STUN-only.
  *
  * Set `VITE_ICE_FORCE_RELAY=true` to make the browser refuse direct paths and
  * use TURN only. Nothing connects unless the relay works, which is the quickest
  * way to prove a TURN server is actually configured correctly — never ship it.
  */
-export function buildPeerConfig(env: IceEnv): RTCConfiguration {
+export function buildPeerConfig(env: IceEnv): RTCConfiguration | undefined {
+  if (!hasCustomIceConfig(env)) return undefined
+
   const config: RTCConfiguration = { iceServers: buildIceServers(env) }
   if (env.VITE_ICE_FORCE_RELAY === 'true') config.iceTransportPolicy = 'relay'
   return config

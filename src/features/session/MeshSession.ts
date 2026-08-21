@@ -139,7 +139,11 @@ export class MeshSession {
   }
 
   #openPeer(id: string): void {
-    const peer = new Peer(id, { debug: 0, config: buildPeerConfig(import.meta.env) })
+    // Omitted entirely when nothing is configured: passing `config` would
+    // replace PeerJS's defaults, which include a free TURN relay, rather than
+    // extend them.
+    const config = buildPeerConfig(import.meta.env)
+    const peer = new Peer(id, { debug: 0, ...(config ? { config } : {}) })
     this.#peer = peer
 
     peer.on('open', (assignedId) => {
