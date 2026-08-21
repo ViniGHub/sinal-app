@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { Occupant } from '@/features/participants/types'
 import { useMesh, useSession } from '@/features/session/useMesh'
 import type { ChannelPresence } from './types'
 
@@ -8,6 +9,8 @@ const REFRESH_MS = 30_000
 
 interface PresenceResult {
   presence: Record<string, ChannelPresence>
+  /** Who each channel reported holding. Empty for a person's id. */
+  occupants: Record<string, Occupant[]>
   refresh: () => void
 }
 
@@ -29,6 +32,7 @@ export function usePresence(
   const session = useSession()
   const mesh = useMesh()
   const [presence, setPresence] = useState<Record<string, ChannelPresence>>({})
+  const [occupants, setOccupants] = useState<Record<string, Occupant[]>>({})
   const [nonce, setNonce] = useState(0)
 
   // Held in a ref because the callback is rebuilt on every channels change;
@@ -57,10 +61,15 @@ export function usePresence(
 
     void Promise.all(
       ids.map(async (id) => {
-        const online = await session.probePeer(id)
+        const { online, occupants: found } = await session.probeChannel(id)
         if (cancelled) return
         setPresence((prev) => ({ ...prev, [id]: online ? 'online' : 'offline' }))
-        if (online) onSeenRef.current(id)
+        // Keep the last known list when a channel goes quiet rather than
+        // blanking it: "vazio" already says nobody is there.
+        if (online) {
+          setOccupants((prev) => ({ ...prev, [id]: found }))
+          onSeenRef.current(id)
+        }
       }),
     )
 
@@ -91,5 +100,5 @@ export function usePresence(
 
   const refresh = useCallback(() => setNonce((value) => value + 1), [])
 
-  return { presence: merged, refresh }
+  return { presence: merged, occupants, refresh }
 }

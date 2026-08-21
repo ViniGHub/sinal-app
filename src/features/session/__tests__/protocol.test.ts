@@ -53,6 +53,47 @@ describe('parseWireMessage', () => {
     })
   })
 
+  it('reads an occupant list with names', () => {
+    const parsed = parseWireMessage({
+      t: 'members',
+      occupants: [
+        { id: 'sinal-aaaaaaaaaaaa', name: 'Vini' },
+        { id: 'sinal-bbbbbbbbbbbb', name: '' },
+      ],
+    })
+    expect(parsed).toEqual({
+      t: 'members',
+      occupants: [
+        { id: 'sinal-aaaaaaaaaaaa', name: 'Vini' },
+        { id: 'sinal-bbbbbbbbbbbb', name: '' },
+      ],
+    })
+  })
+
+  it('still reads the bare id list an older build sends', () => {
+    // Otherwise a peer that has not reloaded would never be dialled at all.
+    expect(parseWireMessage({ t: 'members', peers: ['sinal-aaaaaaaaaaaa'] })).toEqual({
+      t: 'members',
+      occupants: [{ id: 'sinal-aaaaaaaaaaaa', name: '' }],
+    })
+  })
+
+  it('drops occupants it could not dial and sanitises their names', () => {
+    const parsed = parseWireMessage({
+      t: 'members',
+      occupants: [
+        { id: '<script>', name: 'mau' },
+        { name: 'sem id' },
+        null,
+        { id: 'sinal-aaaaaaaaaaaa', name: 'z'.repeat(80) },
+      ],
+    })
+    expect(parsed).toEqual({
+      t: 'members',
+      occupants: [{ id: 'sinal-aaaaaaaaaaaa', name: 'z'.repeat(MAX_NAME_LENGTH) }],
+    })
+  })
+
   it('keeps only well-formed ids out of a roster', () => {
     const parsed = parseWireMessage({
       t: 'roster',

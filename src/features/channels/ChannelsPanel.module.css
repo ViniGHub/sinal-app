@@ -201,6 +201,17 @@
   color: var(--muted);
 }
 
+.occupants {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--signal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
 .dot {
   width: 6px;
   height: 6px;

@@ -6,7 +6,7 @@
  * before the message reaches application code.
  */
 
-import type { AttentionState } from '@/features/participants/types'
+import type { AttentionState, Occupant } from '@/features/participants/types'
 
 export const MAX_NAME_LENGTH = 24
 export const MAX_CHANNEL_NAME_LENGTH = 32
@@ -44,7 +44,7 @@ export type WireMessage =
    */
   | { t: 'channel-name'; name: string; at: number; from: string }
   /** Sent by a channel anchor to whoever just knocked: who is inside. */
-  | { t: 'members'; peers: string[] }
+  | { t: 'members'; occupants: Occupant[] }
 
 /** PeerJS ids are restricted to this alphabet by the public broker. */
 const PEER_ID_RE = /^[A-Za-z0-9_-]{4,64}$/
@@ -68,6 +68,28 @@ function cleanText(value: unknown, max: number): string {
 function cleanRoster(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.filter(isValidPeerId).slice(0, MAX_ROSTER_SIZE)
+}
+
+/**
+ * Accepts both the current shape (objects with a name) and the bare id list an
+ * older build sends, so a peer that has not reloaded yet still gets dialled —
+ * it just shows up without a name until it introduces itself.
+ */
+function cleanOccupants(value: unknown): Occupant[] {
+  if (!Array.isArray(value)) return []
+
+  const occupants: Occupant[] = []
+  for (const entry of value.slice(0, MAX_ROSTER_SIZE)) {
+    if (isValidPeerId(entry)) {
+      occupants.push({ id: entry, name: '' })
+      continue
+    }
+    if (typeof entry !== 'object' || entry === null) continue
+    const record = entry as Record<string, unknown>
+    if (!isValidPeerId(record['id'])) continue
+    occupants.push({ id: record['id'], name: sanitizeName(record['name']) })
+  }
+  return occupants
 }
 
 export function sanitizeName(value: unknown): string {
@@ -128,7 +150,7 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
         peers: cleanRoster(msg['peers']),
       }
     case 'members':
-      return { t: 'members', peers: cleanRoster(msg['peers']) }
+      return { t: 'members', occupants: cleanOccupants(msg['occupants'] ?? msg['peers']) }
     case 'channel': {
       const id = msg['id']
       return isValidPeerId(id) ? { t: 'channel', id } : null

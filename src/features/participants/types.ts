@@ -1,6 +1,18 @@
 export type PeerStatus = 'connecting' | 'connected' | 'closed'
 
 /**
+ * Someone inside a channel, as announced by its anchor.
+ *
+ * Thinner than `RemotePeer` on purpose: this describes people we are *not*
+ * connected to, so there are no streams and no live state — just who is there.
+ */
+export interface Occupant {
+  id: string
+  /** Empty when they have not announced a name. */
+  name: string
+}
+
+/**
  * How present someone is at their browser.
  *
  * Reliable in one direction only: 'hidden' proves they are *not* seeing a

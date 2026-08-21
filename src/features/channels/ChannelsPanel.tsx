@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCopy } from '@/shared/hooks/useCopy'
 import { buildChannelInviteUrl } from '@/features/identity/invite'
+import type { Occupant } from '@/features/participants/types'
 import { shortId } from '@/features/session/protocol'
 import { useMesh, useSession } from '@/features/session/useMesh'
 import { ChannelNameField } from './ChannelNameField'
@@ -16,6 +17,27 @@ const PRESENCE_LABEL: Record<ChannelPresence, string> = {
   checking: 'checando…',
   online: 'ativo',
   offline: 'vazio',
+}
+
+/** How many names to spell out before falling back to a count. */
+const NAMES_SHOWN = 3
+
+/**
+ * "Vini, Ana e mais 2" — names where we have them, a count where we do not.
+ * A person who has not announced a name is counted, never invented.
+ */
+function describeOccupants(occupants: Occupant[]): string {
+  const named = occupants.filter((occupant) => occupant.name)
+  const anonymous = occupants.length - named.length
+
+  const shown = named.slice(0, NAMES_SHOWN).map((occupant) => occupant.name)
+  const hidden = named.length - shown.length + anonymous
+
+  if (shown.length === 0) {
+    return `${occupants.length} ${occupants.length === 1 ? 'pessoa' : 'pessoas'}`
+  }
+  if (hidden === 0) return shown.join(', ')
+  return `${shown.join(', ')} e mais ${hidden}`
 }
 
 /** "há 3 min", "há 2 h", "há 4 d" — enough precision for a bookmark list. */
@@ -36,7 +58,7 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const [copied, copy] = useCopy()
 
   const ids = useMemo(() => channels.map((channel) => channel.id), [channels])
-  const { presence, refresh } = usePresence(ids, open, markSeen)
+  const { presence, occupants, refresh } = usePresence(ids, open, markSeen)
 
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -192,6 +214,12 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
                     {PRESENCE_LABEL[state]}
                     {state === 'offline' && ` · ${timeAgo(channel.lastSeenAt)}`}
                   </span>
+
+                  {state === 'online' && (occupants[channel.id]?.length ?? 0) > 0 && (
+                    <span className={styles.occupants} title="quem está neste canal">
+                      {describeOccupants(occupants[channel.id] ?? [])}
+                    </span>
+                  )}
                 </div>
 
                 <div className={styles.actions}>

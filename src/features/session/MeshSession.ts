@@ -17,7 +17,7 @@ import {
   createSilentAudioStream,
   stopStream,
 } from '@/features/media/capture'
-import type { AttentionState, RemotePeer } from '@/features/participants/types'
+import type { AttentionState, Occupant, RemotePeer } from '@/features/participants/types'
 import { readAttention, watchAttention } from './attention'
 import { isAdminName } from './moderation'
 import { buildPeerConfig } from './ice'
@@ -99,12 +99,24 @@ interface InviteRuntime {
   timer: ReturnType<typeof setTimeout> | null
 }
 
+/** What a presence check found. Occupants are empty unless an anchor answered. */
+export interface ProbeResult {
+  online: boolean
+  occupants: Occupant[]
+}
+
+/** How long an opened probe waits for an occupant list before giving up on one. */
+const PROBE_GRACE_MS = 1_200
+
 /** An in-flight presence check. Deliberately never becomes a participant. */
 interface Probe {
-  promise: Promise<boolean>
-  settle: (online: boolean) => void
+  promise: Promise<ProbeResult>
+  settle: (result: ProbeResult) => void
   conn: DataConnection | null
   timer: ReturnType<typeof setTimeout>
+  /** Whether the connection ever opened, which is the online verdict itself. */
+  opened: boolean
+  graceTimer: ReturnType<typeof setTimeout> | null
 }
 
 interface PeerJsError {
@@ -210,7 +222,9 @@ export class MeshSession {
     this.#records.clear()
 
     // Settle rather than drop: a caller awaiting a probe would hang forever.
-    for (const peerId of [...this.#probes.keys()]) this.#settleProbe(peerId, false)
+    for (const peerId of [...this.#probes.keys()]) {
+      this.#settleProbe(peerId, { online: false, occupants: [] })
+    }
 
     const channel = this.#channel
     this.#channel = null
@@ -278,7 +292,7 @@ export class MeshSession {
         // settle it quietly instead of flashing an error the user never asked
         // for. This is the only signal the broker gives us for "not online".
         if (target && this.#probes.has(target)) {
-          this.#settleProbe(target, false)
+          this.#settleProbe(target, { online: false, occupants: [] })
           return
         }
         // The person behind a personal link is not online. Nothing to create
@@ -579,10 +593,13 @@ export class MeshSession {
       // Only the joiner knows the full list, so the joiner dials everyone.
       // Applying the usual initiator rule here would leave us waiting on peers
       // that have no idea we exist yet.
-      for (const memberId of message.peers) {
-        if (memberId === this.#selfId || this.#records.has(memberId)) continue
-        this.#ensureRecord(memberId)
-        this.#dial(memberId)
+      for (const occupant of message.occupants) {
+        if (occupant.id === this.#selfId || this.#records.has(occupant.id)) continue
+        this.#ensureRecord(occupant.id)
+        // Seed the name the anchor gave us so the tile is labelled from the
+        // first frame, instead of showing a raw id until the handshake lands.
+        if (occupant.name) this.#patch(occupant.id, { name: occupant.name })
+        this.#dial(occupant.id)
       }
       this.#setStatus('ok', `no canal ${shortId(channel.id)}.`)
     })
@@ -608,7 +625,7 @@ export class MeshSession {
     const channel = this.#channel
     if (!channel || channel.anchor) return
 
-    const anchor = new ChannelAnchor(channel.id, () => this.#channelRoster())
+    const anchor = new ChannelAnchor(channel.id, () => this.#channelOccupants())
     channel.anchor = anchor
     const outcome = await anchor.claim()
 
@@ -698,9 +715,13 @@ export class MeshSession {
   }
 
   /** Who to advertise to a joiner: us plus everyone we can currently see. */
-  #channelRoster(): string[] {
-    const ids = [...this.#records.keys()]
-    return this.#selfId ? [this.#selfId, ...ids] : ids
+  #channelOccupants(): Occupant[] {
+    const occupants: Occupant[] = []
+    if (this.#selfId) occupants.push({ id: this.#selfId, name: this.#displayName() })
+    for (const record of this.#records.values()) {
+      occupants.push({ id: record.id, name: record.view.name })
+    }
+    return occupants
   }
 
   /**
@@ -711,33 +732,60 @@ export class MeshSession {
    * connection is closed the instant it does: this must never turn into a call,
    * appear in the participant list, or surface an error in the status line.
    */
-  probePeer(peerId: string): Promise<boolean> {
-    if (!this.#peer || this.#destroyed || !isValidPeerId(peerId)) return Promise.resolve(false)
-    // Our own id and anyone already connected are trivially online — spending a
-    // round trip to learn that would only add latency to the panel.
-    if (peerId === this.#selfId) return Promise.resolve(true)
-    if (this.#records.get(peerId)?.conn?.open) return Promise.resolve(true)
+  probeChannel(peerId: string): Promise<ProbeResult> {
+    const offline: ProbeResult = { online: false, occupants: [] }
+    if (!this.#peer || this.#destroyed || !isValidPeerId(peerId)) return Promise.resolve(offline)
+
+    // Things we already know first-hand, answered without a round trip.
+    if (peerId === this.#selfId) return Promise.resolve({ online: true, occupants: [] })
+    if (this.#channel?.id === peerId) {
+      return Promise.resolve({ online: true, occupants: this.#channelOccupants() })
+    }
+    if (this.#records.get(peerId)?.conn?.open) {
+      return Promise.resolve({ online: true, occupants: [] })
+    }
 
     const inFlight = this.#probes.get(peerId)
     if (inFlight) return inFlight.promise
 
-    let settle: (online: boolean) => void = () => {}
-    const promise = new Promise<boolean>((resolve) => {
+    let settle: (result: ProbeResult) => void = () => {}
+    const promise = new Promise<ProbeResult>((resolve) => {
       settle = resolve
     })
 
-    const timer = setTimeout(() => this.#settleProbe(peerId, false), PROBE_TIMEOUT_MS)
-    const conn = this.#peer.connect(peerId, { reliable: false, metadata: { probe: true } })
-    this.#probes.set(peerId, { promise, settle, conn, timer })
+    const timer = setTimeout(() => this.#settleProbe(peerId, offline), PROBE_TIMEOUT_MS)
+    // Reliable now: we are waiting for an answer, not just for the socket.
+    const conn = this.#peer.connect(peerId, { reliable: true, metadata: { probe: true } })
+    const probe: Probe = { promise, settle, conn, timer, opened: false, graceTimer: null }
+    this.#probes.set(peerId, probe)
 
-    conn.on('open', () => this.#settleProbe(peerId, true))
-    conn.on('error', () => this.#settleProbe(peerId, false))
-    conn.on('close', () => this.#settleProbe(peerId, false))
+    conn.on('open', () => {
+      probe.opened = true
+      // An anchor answers with its occupants; a person's id answers nothing at
+      // all. Wait briefly for the list, then report plain "online" rather than
+      // holding the whole probe timeout hostage to an answer that never comes.
+      probe.graceTimer = setTimeout(
+        () => this.#settleProbe(peerId, { online: true, occupants: [] }),
+        PROBE_GRACE_MS,
+      )
+    })
+
+    conn.on('data', (raw) => {
+      const message = parseWireMessage(raw)
+      if (message?.t !== 'members') return
+      this.#settleProbe(peerId, { online: true, occupants: message.occupants })
+    })
+
+    conn.on('error', () => this.#settleProbe(peerId, offline))
+    // Closing after a successful open still means it was reachable.
+    conn.on('close', () =>
+      this.#settleProbe(peerId, probe.opened ? { online: true, occupants: [] } : offline),
+    )
 
     return promise
   }
 
-  #settleProbe(peerId: string, online: boolean): void {
+  #settleProbe(peerId: string, result: ProbeResult): void {
     const probe = this.#probes.get(peerId)
     // Already settled: the close we trigger below re-enters here, and the
     // timeout can fire after a verdict was reached.
@@ -745,8 +793,9 @@ export class MeshSession {
 
     this.#probes.delete(peerId)
     clearTimeout(probe.timer)
+    if (probe.graceTimer) clearTimeout(probe.graceTimer)
     probe.conn?.close()
-    probe.settle(online)
+    probe.settle(result)
   }
 
   // -------------------------------------------------------- data channel

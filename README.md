@@ -198,6 +198,16 @@ colocaria um bloco fantasma na tela de todo mundo na sala.
 Para um canal, isso responde "tem alguém aí dentro?" em vez de "essa pessoa
 está online?" — que é a pergunta que realmente importa.
 
+A âncora responde com **quem** está dentro, e não só que está viva, então o
+painel mostra os nomes de cada canal salvo sem precisar entrar nele. Uma
+sondagem que abre mas não responde nada é uma pessoa, não um canal; ela espera
+pouco mais de um segundo por essa lista antes de reportar apenas "ativo", em
+vez de segurar o resultado até o timeout inteiro.
+
+**Consequência de privacidade:** quem tem o ID de um canal enxerga quem está lá
+dentro sem entrar e sem ser visto. O ID do canal é, na prática, a única
+credencial que existe — trate o link como você trataria a senha da sala.
+
 Só há sondagem com o painel aberto. Uma lista de favoritos não deve gerar
 tráfego em segundo plano, e quem já está conectado é dado como ativo sem gastar
 ida e volta.

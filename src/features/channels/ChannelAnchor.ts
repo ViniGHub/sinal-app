@@ -1,5 +1,6 @@
 import { Peer } from 'peerjs'
 
+import type { Occupant } from '@/features/participants/types'
 import { buildPeerConfig } from '@/features/session/ice'
 
 /** What happened when we tried to take the channel id. */
@@ -35,7 +36,7 @@ export class ChannelAnchor {
   constructor(
     readonly channelId: string,
     /** Who to advertise to joiners: us plus everyone we can currently see. */
-    private readonly roster: () => string[],
+    private readonly roster: () => Occupant[],
   ) {}
 
   claim(): Promise<AnchorOutcome> {
@@ -67,7 +68,7 @@ export class ChannelAnchor {
       peer.on('connection', (conn) => {
         conn.on('open', () => {
           try {
-            void conn.send({ t: 'members', peers: this.roster() })
+            void conn.send({ t: 'members', occupants: this.roster() })
           } catch {
             // The joiner vanished mid-handshake; they will retry.
           }
