@@ -273,11 +273,10 @@ export class MeshSession {
           this.#setStatus('error', 'essa pessoa não está online agora.')
           return
         }
-        // Nobody holds the channel id: the channel is empty, so we take it and
-        // become the room that later joiners will find. This is also how a
-        // brand new channel comes into existence — there is no create step.
+        // The anchor we were knocking on is gone. Race for the vacant id
+        // instead of reporting a failure — the channel outlives its holder.
         if (target && this.#channel?.id === target && !this.#channel.anchor) {
-          void this.#claimAnchor()
+          this.#scheduleReclaim()
           return
         }
         if (target && this.#records.has(target)) this.#dropPeer(target)
@@ -488,9 +487,12 @@ export class MeshSession {
   /**
    * Enters a channel by its id.
    *
-   * Two outcomes, and the caller does not need to know which: either someone
-   * is already holding the channel id and we ask them who is inside, or nobody
-   * is and we take the id ourselves, becoming the room others will find.
+   * We try to claim the id first, and only knock if the broker says it is
+   * taken. That order matters: registration answers immediately either way
+   * (ID-TAKEN comes straight back), whereas dialling a *vacant* id gives no
+   * answer at all until the server expires the queued message seconds later.
+   * Knocking first therefore meant an empty channel appeared to be dead, and
+   * nobody ever became its anchor.
    */
   joinChannel(channelId: string): void {
     if (!this.#peer || this.#destroyed || !isValidPeerId(channelId)) {
@@ -512,7 +514,7 @@ export class MeshSession {
       knockTimer: null,
     }
     this.#setStatus('busy', `entrando no canal ${shortId(channelId)}…`)
-    this.#knockAnchor()
+    void this.#claimAnchor()
     this.#publish()
   }
 
@@ -540,12 +542,13 @@ export class MeshSession {
     const conn = this.#peer.connect(channel.id, { reliable: true, metadata: { channel: true } })
     channel.conn = conn
 
-    // An id that accepts the connection but never announces its members is a
-    // person, not a channel. Say so instead of hanging on "entrando…".
+    // We only knock on an id the broker said was taken, so silence here means
+    // the holder is not an anchor — most likely it died between our claim
+    // attempt and this knock. Race for it rather than sitting on "entrando…".
     channel.knockTimer = setTimeout(() => {
       channel.knockTimer = null
       if (this.#channel !== channel || channel.anchor) return
-      this.#setStatus('error', 'esse ID respondeu, mas não é um canal.')
+      this.#scheduleReclaim()
     }, KNOCK_TIMEOUT_MS)
 
     conn.on('data', (raw) => {
@@ -606,7 +609,7 @@ export class MeshSession {
 
     channel.anchor = null
     if (outcome === 'taken') {
-      // Someone beat us to it by a hair. They are the room now; go knock.
+      // The channel is live and someone else holds it. Ask them who is inside.
       this.#knockAnchor()
     } else {
       this.#setStatus('error', 'não foi possível entrar no canal.')

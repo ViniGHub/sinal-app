@@ -103,12 +103,18 @@ infraestrutura nova: o broker é o cadeado.
 ```
 entrar no canal X
    │
-   ├── alguém segura X ──► ele responde `members` ──► disco todos ──► malha
+   ├── registro X e consigo ──► virei o âncora (canal criado)
    │
-   └── ninguém segura X ──► eu registro X ──► virei o âncora (canal criado)
+   └── o broker diz ID-TAKEN ──► bato na porta ──► `members` ──► disco todos
 ```
 
 Não existe passo de "criar": entrar num canal vazio *é* criá-lo.
+
+**A ordem importa.** Tentar registrar responde na hora nos dois casos, porque o
+servidor devolve `ID-TAKEN` imediatamente. Já discar um ID *vago* não devolve
+nada até o servidor expirar a mensagem enfileirada, vários segundos depois — o
+`peer-unavailable` do PeerJS vem só do `EXPIRE`. Bater na porta primeiro fazia
+um canal vazio parecer morto, e ninguém virava âncora.
 
 O âncora é um ponto de encontro, **nunca um relay** — ele entrega a lista de
 membros e nada mais. Voz e tela continuam ponto a ponto. Quando o âncora sai, o
