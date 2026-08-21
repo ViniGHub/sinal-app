@@ -52,6 +52,8 @@ export interface MeshSnapshot {
   sharing: boolean
   /** Local screen capture, for self-preview. */
   localScreen: MediaStream | null
+  /** Local camera capture, or null when it is off. */
+  localCamera: MediaStream | null
   /** Our own microphone capture, for the level meter. */
   localMic: MediaStream | null
   messages: ChatMessage[]

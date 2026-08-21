@@ -6,6 +6,8 @@ interface SelfTileProps {
   micMuted: boolean
   /** Our screen capture, or null when we are not sharing. */
   screen: MediaStream | null
+  /** Our camera, or null when it is off. */
+  camera: MediaStream | null
   onExpand: (target: string) => void
   /** Connected peers whose tab is in front of them. */
   watching: number
@@ -19,23 +21,45 @@ interface SelfTileProps {
  * Always rendered, sharing or not: you are a participant like anyone else, and
  * the headcount only reads correctly when the person reading it is in it.
  */
-export function SelfTile({ name, micMuted, screen, onExpand, watching, audience }: SelfTileProps) {
-  // Muted on purpose: playing our own captured tab audio back would echo.
-  const videoRef = useMediaStream<HTMLVideoElement>(screen)
+export function SelfTile({
+  name,
+  micMuted,
+  screen,
+  camera,
+  onExpand,
+  watching,
+  audience,
+}: SelfTileProps) {
+  // Both muted: playing our own capture back would echo, and a self-view has
+  // nothing to hear anyway.
+  const screenRef = useMediaStream<HTMLVideoElement>(screen)
+  const cameraRef = useMediaStream<HTMLVideoElement>(camera)
   const everyone = audience > 0 && watching === audience
+  const hasVideo = screen !== null || camera !== null
 
   return (
     <article className={`${styles.tile} ${styles.selfTile}`}>
       <div className={styles.screen}>
-        {screen ? (
-          <>
-            <video ref={videoRef} autoPlay playsInline muted className={styles.video} />
-            <button type="button" className={styles.expand} onClick={() => onExpand('self')}>
-              expandir
-            </button>
-          </>
-        ) : (
-          <p className={styles.placeholder}>você não está compartilhando</p>
+        {screen && <video ref={screenRef} autoPlay playsInline muted className={styles.video} />}
+
+        {camera && (
+          <video
+            ref={cameraRef}
+            autoPlay
+            playsInline
+            muted
+            /* Mirrored, because a self-view that moves the wrong way is
+               disorienting — the same convention every video app follows. */
+            className={`${screen ? styles.cameraInset : styles.video} ${styles.mirrored}`}
+          />
+        )}
+
+        {!hasVideo && <p className={styles.placeholder}>câmera e tela desligadas</p>}
+
+        {hasVideo && (
+          <button type="button" className={styles.expand} onClick={() => onExpand('self')}>
+            expandir
+          </button>
         )}
       </div>
 

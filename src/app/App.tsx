@@ -61,16 +61,26 @@ export function App() {
   const closePanel = useCallback(() => setPanel(null), [])
   const closeSpotlight = useCallback(() => setSpotlight(null), [])
 
+  // The screen wins when both are on: it is the one with detail worth filling
+  // the page with. The camera is what gets expanded when it is all there is.
   const spotlighted = useMemo(() => {
     if (!spotlight) return null
+
     if (spotlight === 'self') {
-      return mesh.localScreen ? { stream: mesh.localScreen, label: 'sua tela', muted: true } : null
+      if (mesh.localScreen) return { stream: mesh.localScreen, label: 'sua tela', muted: true }
+      if (mesh.localCamera) return { stream: mesh.localCamera, label: 'sua câmera', muted: true }
+      return null
     }
+
     const peer = mesh.peers.find((candidate) => candidate.id === spotlight)
-    return peer?.screenStream
-      ? { stream: peer.screenStream, label: `tela de ${peer.name}`, muted: false }
-      : null
-  }, [spotlight, mesh.localScreen, mesh.peers])
+    if (peer?.screenStream) {
+      return { stream: peer.screenStream, label: `tela de ${peer.name}`, muted: false }
+    }
+    if (peer?.cameraStream) {
+      return { stream: peer.cameraStream, label: `câmera de ${peer.name}`, muted: true }
+    }
+    return null
+  }, [spotlight, mesh.localScreen, mesh.localCamera, mesh.peers])
 
   // The stream can vanish under us — they stop sharing, or leave entirely.
   // Drop back to the grid rather than holding an empty black overlay.
@@ -132,6 +142,7 @@ export function App() {
         micStream={mesh.localMic}
         micMuted={mesh.micMuted}
         sharing={mesh.sharing}
+        cameraOn={mesh.localCamera !== null}
         chatOpen={chatOpen}
         channelsOpen={panel === 'channels'}
         unreadCount={unread}

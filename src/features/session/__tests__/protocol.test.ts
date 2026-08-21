@@ -48,9 +48,19 @@ describe('parseWireMessage', () => {
       name: '',
       micMuted: false,
       sharing: false,
+      camera: false,
       attention: 'unknown',
       peers: [],
     })
+  })
+
+  it('treats screen and camera as independent', () => {
+    // Someone can show both at once, so neither flag may be derived from the
+    // other — a tile showing a screen must not assume the camera is off.
+    expect(parseWireMessage({ t: 'camera', on: true })).toEqual({ t: 'camera', on: true })
+    expect(parseWireMessage({ t: 'camera', on: 'sim' })).toEqual({ t: 'camera', on: false })
+    const parsed = parseWireMessage({ t: 'hello', sharing: true, camera: true })
+    expect(parsed).toMatchObject({ sharing: true, camera: true })
   })
 
   it('reads an occupant list with names', () => {

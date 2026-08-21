@@ -7,6 +7,7 @@ interface ControlBarProps {
   micStream: MediaStream | null
   micMuted: boolean
   sharing: boolean
+  cameraOn: boolean
   chatOpen: boolean
   channelsOpen: boolean
   unreadCount: number
@@ -20,6 +21,7 @@ export function ControlBar({
   micStream,
   micMuted,
   sharing,
+  cameraOn,
   chatOpen,
   channelsOpen,
   unreadCount,
@@ -43,6 +45,15 @@ export function ControlBar({
       >
         <span>{hasMic ? (micMuted ? 'Mic mudo' : 'Mic ativo') : 'Sem microfone'}</span>
         <MicMeter level={level} muted={micMuted} />
+      </button>
+
+      <button
+        type="button"
+        className={`${styles.button} ${cameraOn ? styles.live : ''}`}
+        onClick={() => session.toggleCamera()}
+        aria-pressed={cameraOn}
+      >
+        {cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
       </button>
 
       <button

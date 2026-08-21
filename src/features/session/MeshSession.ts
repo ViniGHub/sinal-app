@@ -12,6 +12,7 @@ import {
 } from '@/features/identity/storage'
 import {
   MediaError,
+  acquireCamera,
   acquireMicrophone,
   acquireScreen,
   createSilentAudioStream,
@@ -41,6 +42,8 @@ interface PeerRecord {
   audioCall: MediaConnection | null
   /** Our screen, being pushed to them. */
   screenOut: MediaConnection | null
+  /** Our camera, being pushed to them. Separate call, separate lifecycle. */
+  cameraOut: MediaConnection | null
   /** Fires if the peer we are waiting on never dials us. */
   dialTimer: ReturnType<typeof setTimeout> | null
   /** The shape the UI sees. Replaced wholesale so React can diff by identity. */
@@ -139,6 +142,7 @@ export class MeshSession {
   #mic: MediaStream | null = null
   #silent: MediaStream | null = null
   #screen: MediaStream | null = null
+  #camera: MediaStream | null = null
 
   #records = new Map<string, PeerRecord>()
   #probes = new Map<string, Probe>()
@@ -241,9 +245,11 @@ export class MeshSession {
     stopStream(this.#mic)
     stopStream(this.#silent)
     stopStream(this.#screen)
+    stopStream(this.#camera)
     this.#mic = null
     this.#silent = null
     this.#screen = null
+    this.#camera = null
 
     this.#peer?.destroy()
     this.#peer = null
@@ -533,6 +539,47 @@ export class MeshSession {
   toggleSharing(): void {
     if (this.#sharing) this.stopSharing()
     else void this.startSharing()
+  }
+
+  async startCamera(): Promise<void> {
+    if (this.#camera || this.#destroyed) return
+
+    let stream: MediaStream
+    try {
+      stream = await acquireCamera()
+    } catch (error) {
+      if (error instanceof MediaError && !error.cancelled) this.#setStatus('error', error.message)
+      return
+    }
+
+    this.#camera = stream
+
+    // Fires if the device is revoked or taken by another app, so both that and
+    // our own button converge on the same cleanup.
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => this.stopCamera())
+
+    for (const peerId of this.#records.keys()) this.#callCamera(peerId)
+    this.#broadcast({ t: 'camera', on: true })
+    this.#publish()
+  }
+
+  stopCamera(): void {
+    if (!this.#camera) return
+
+    for (const record of this.#records.values()) {
+      record.cameraOut?.close()
+      record.cameraOut = null
+    }
+    stopStream(this.#camera)
+    this.#camera = null
+
+    this.#broadcast({ t: 'camera', on: false })
+    this.#publish()
+  }
+
+  toggleCamera(): void {
+    if (this.#camera) this.stopCamera()
+    else void this.startCamera()
   }
 
   sendChat(rawText: string): void {
@@ -896,12 +943,16 @@ export class MeshSession {
         name: this.#displayName(),
         micMuted: this.#micMuted,
         sharing: this.#sharing,
+        camera: this.#camera !== null,
         attention: this.#attention,
         peers: this.#knownIds(),
       })
       this.#sendChannelName(conn)
       this.#maybeCallAudio(peerId)
+      // Push whatever video we already have, so someone joining late sees it
+      // instead of waiting for us to toggle it off and on again.
       if (this.#sharing) this.#callScreen(peerId)
+      if (this.#camera) this.#callCamera(peerId)
     })
     conn.on('data', (raw) => this.#onData(peerId, raw))
     conn.on('close', () => this.#dropPeer(peerId))
@@ -922,6 +973,7 @@ export class MeshSession {
           status: 'connected',
         })
         if (!message.sharing) this.#patch(peerId, { screenStream: null })
+        if (!message.camera) this.#patch(peerId, { cameraStream: null })
         this.#mergeRoster(message.peers)
         if (message.t === 'hello') {
           const conn = this.#records.get(peerId)?.conn
@@ -931,6 +983,7 @@ export class MeshSession {
               name: this.#displayName(),
               micMuted: this.#micMuted,
               sharing: this.#sharing,
+              camera: this.#camera !== null,
               attention: this.#attention,
               peers: this.#knownIds(),
             })
@@ -969,6 +1022,9 @@ export class MeshSession {
         // The stream itself arrives on the media call; this only handles the
         // stop signal, which is more reliable than waiting for a track to end.
         if (!message.sharing) this.#patch(peerId, { screenStream: null })
+        return
+      case 'camera':
+        if (!message.on) this.#patch(peerId, { cameraStream: null })
         return
       case 'chat': {
         const name = this.#records.get(peerId)?.view.name ?? shortId(peerId)
@@ -1049,6 +1105,13 @@ export class MeshSession {
     record.screenOut = this.#peer.call(peerId, this.#screen, { metadata: { kind: 'screen' } })
   }
 
+  #callCamera(peerId: string): void {
+    const record = this.#records.get(peerId)
+    if (!this.#peer || !this.#camera || !record) return
+    record.cameraOut?.close()
+    record.cameraOut = this.#peer.call(peerId, this.#camera, { metadata: { kind: 'camera' } })
+  }
+
   #answerCall(call: MediaConnection): void {
     const peerId = call.peer
     if (!isValidPeerId(peerId)) return
@@ -1056,11 +1119,14 @@ export class MeshSession {
     const record = this.#ensureRecord(peerId)
     const kind = (call.metadata as { kind?: string } | undefined)?.kind
 
-    if (kind === 'screen') {
+    // Video arrives receive-only: answering with a stream would push ours back
+    // down the same call, and each direction has its own call by design.
+    if (kind === 'screen' || kind === 'camera') {
+      const field = kind === 'screen' ? 'screenStream' : 'cameraStream'
       call.answer()
-      call.on('stream', (stream) => this.#patch(peerId, { screenStream: stream }))
-      call.on('close', () => this.#patch(peerId, { screenStream: null }))
-      call.on('error', () => this.#patch(peerId, { screenStream: null }))
+      call.on('stream', (stream) => this.#patch(peerId, { [field]: stream }))
+      call.on('close', () => this.#patch(peerId, { [field]: null }))
+      call.on('error', () => this.#patch(peerId, { [field]: null }))
       return
     }
 
@@ -1080,6 +1146,7 @@ export class MeshSession {
       conn: null,
       audioCall: null,
       screenOut: null,
+      cameraOut: null,
       dialTimer: null,
       view: {
         id: peerId,
@@ -1091,6 +1158,7 @@ export class MeshSession {
         attention: 'unknown',
         audioStream: null,
         screenStream: null,
+        cameraStream: null,
       },
     }
     this.#records.set(peerId, record)
@@ -1117,9 +1185,11 @@ export class MeshSession {
     this.#clearDialTimer(record)
     record.audioCall?.close()
     record.screenOut?.close()
+    record.cameraOut?.close()
     record.conn?.close()
     record.audioCall = null
     record.screenOut = null
+    record.cameraOut = null
     record.conn = null
   }
 
@@ -1195,6 +1265,7 @@ export class MeshSession {
       micMuted: this.#micMuted,
       sharing: this.#sharing,
       localScreen: this.#screen,
+      localCamera: this.#camera,
       localMic: this.#mic,
       messages: this.#messages,
     }

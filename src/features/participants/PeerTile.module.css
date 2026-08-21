@@ -30,6 +30,28 @@
   background: #05070a;
 }
 
+/*
+ * Camera over a shared screen. Small enough to stay out of the way, and
+ * positioned away from the expand button in the opposite corner.
+ */
+.cameraInset {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  width: 32%;
+  max-width: 110px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: #05070a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+.mirrored {
+  transform: scaleX(-1);
+}
+
 .placeholder {
   color: #3a4450;
   font-family: var(--font-mono);

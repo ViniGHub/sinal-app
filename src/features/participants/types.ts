@@ -39,4 +39,9 @@ export interface RemotePeer {
   audioStream: MediaStream | null
   /** Their screen, or null when they are not sharing. */
   screenStream: MediaStream | null
+  /**
+   * Their camera, or null when it is off. Independent of the screen: someone
+   * can show both at once, and the tile lays them out accordingly.
+   */
+  cameraStream: MediaStream | null
 }

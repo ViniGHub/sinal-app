@@ -42,6 +42,35 @@ export async function acquireMicrophone(): Promise<MediaStream> {
   }
 }
 
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    facingMode: 'user',
+  },
+  // The microphone is captured separately and already flows on its own call;
+  // asking for audio here would send everyone a second copy of your voice.
+  audio: false,
+}
+
+export async function acquireCamera(): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new MediaError('Este navegador não expõe acesso à câmera.', false)
+  }
+  try {
+    return await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
+  } catch (error) {
+    if (isCancellation(error)) {
+      throw new MediaError('Permissão de câmera negada.', true)
+    }
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      throw new MediaError('Nenhuma câmera encontrada neste dispositivo.', false)
+    }
+    // NotReadableError, most often: another app already holds the device.
+    throw new MediaError('Não foi possível abrir a câmera — outro app pode estar usando.', false)
+  }
+}
+
 export async function acquireScreen(): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
     throw new MediaError('Este navegador não permite compartilhar a tela.', false)

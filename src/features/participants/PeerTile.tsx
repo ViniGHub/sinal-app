@@ -37,22 +37,38 @@ interface PeerTileProps {
 
 export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
   const session = useSession()
-  const videoRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
+  // The screen takes the tile when present and the camera becomes an inset;
+  // with only a camera, it takes the tile itself.
+  const screenRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
+  const cameraRef = useMediaStream<HTMLVideoElement>(peer.cameraStream)
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
+
+  const hasVideo = peer.screenStream !== null || peer.cameraStream !== null
 
   return (
     <article className={styles.tile}>
       <div className={styles.screen}>
-        {peer.screenStream ? (
-          <>
-            {/* Not muted: on Chromium the shared tab's audio rides along. */}
-            <video ref={videoRef} autoPlay playsInline className={styles.video} />
-            <button type="button" className={styles.expand} onClick={() => onExpand(peer.id)}>
-              expandir
-            </button>
-          </>
-        ) : (
-          <p className={styles.placeholder}>sem tela compartilhada</p>
+        {peer.screenStream && (
+          /* Not muted: on Chromium the shared tab's audio rides along. */
+          <video ref={screenRef} autoPlay playsInline className={styles.video} />
+        )}
+
+        {peer.cameraStream && (
+          <video
+            ref={cameraRef}
+            autoPlay
+            playsInline
+            muted
+            className={peer.screenStream ? styles.cameraInset : styles.video}
+          />
+        )}
+
+        {!hasVideo && <p className={styles.placeholder}>sem vídeo</p>}
+
+        {hasVideo && (
+          <button type="button" className={styles.expand} onClick={() => onExpand(peer.id)}>
+            expandir
+          </button>
         )}
       </div>
 

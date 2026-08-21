@@ -192,6 +192,20 @@ Dois relógios são mantidos separados de propósito: o do autor, que só serve
 para ordenar reivindicações, e o local, que mede o cooldown. Misturá-los faria
 o relógio adiantado de um participante travar o botão dos outros.
 
+### Câmera e tela
+
+São **trilhas independentes**, não um seletor: dá para mostrar as duas ao mesmo
+tempo. Cada uma viaja na sua própria chamada de mídia, distinguida por
+`metadata.kind` (`'camera'` ou `'screen'`), com ciclo de vida próprio — ligar a
+câmera não toca no compartilhamento de tela e vice-versa.
+
+No bloco do participante, a tela ocupa o espaço e a câmera vira uma inserção no
+canto; havendo só a câmera, ela ocupa o bloco inteiro. A própria câmera é
+espelhada, como em qualquer app de vídeo.
+
+A captura da câmera pede `audio: false` de propósito: a voz já trafega na
+chamada de áudio, e pedir áudio aqui mandaria a todos uma segunda cópia dela.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

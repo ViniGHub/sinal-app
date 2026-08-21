@@ -25,6 +25,7 @@ export function PeerGrid({ onExpand }: PeerGridProps) {
           name={mesh.selfName}
           micMuted={mesh.micMuted}
           screen={mesh.localScreen}
+          camera={mesh.localCamera}
           onExpand={onExpand}
           watching={watching}
           audience={connected.length}

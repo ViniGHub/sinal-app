@@ -17,7 +17,10 @@ export const MAX_ROSTER_SIZE = 64
 interface Presence {
   name: string
   micMuted: boolean
+  /** Whether their screen is being shared. */
   sharing: boolean
+  /** Whether their camera is on. Independent of `sharing`. */
+  camera: boolean
   attention: AttentionState
 }
 
@@ -29,6 +32,7 @@ export type WireMessage =
   | { t: 'name'; name: string }
   | { t: 'mic'; micMuted: boolean }
   | { t: 'screen'; sharing: boolean }
+  | { t: 'camera'; on: boolean }
   | { t: 'attention'; attention: AttentionState }
   | { t: 'chat'; text: string; at: number }
   /**
@@ -152,6 +156,7 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
         name: sanitizeName(msg['name']),
         micMuted: msg['micMuted'] === true,
         sharing: msg['sharing'] === true,
+        camera: msg['camera'] === true,
         attention: cleanAttention(msg['attention']),
         peers: cleanRoster(msg['peers']),
       }
@@ -167,6 +172,8 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'mic', micMuted: msg['micMuted'] === true }
     case 'screen':
       return { t: 'screen', sharing: msg['sharing'] === true }
+    case 'camera':
+      return { t: 'camera', on: msg['on'] === true }
     case 'attention':
       return { t: 'attention', attention: cleanAttention(msg['attention']) }
     case 'kick':
