@@ -3,3 +3,8 @@ dist/
 .vite/
 *.local
 .DS_Store
+
+# local env overrides (may hold TURN credentials)
+.env
+.env.local
+.env.*.local

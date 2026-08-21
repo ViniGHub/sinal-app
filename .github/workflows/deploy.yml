@@ -14,15 +14,20 @@ concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  # Runners have retired the Node 20 action runtime; every action below is
+  # pinned to a major that ships on node24.
+  NODE_VERSION: "24"
+
 jobs:
   # Type errors and failing tests should stop a deploy, not ship with it.
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm run typecheck
@@ -36,30 +41,36 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - run: npm ci
 
       - name: Build
-        # Project pages live at /<repo>/, so the bundle needs a matching base.
         env:
+          # Project pages live at /<repo>/, so the bundle needs a matching base.
           VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          # Optional TURN relay. Using secrets keeps the credentials out of the
+          # repository — it does NOT keep them out of the shipped bundle, which
+          # anyone can read. See "Credenciais efêmeras" in the README.
+          VITE_TURN_URLS: ${{ vars.TURN_URLS }}
+          VITE_TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
         run: npm run build
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

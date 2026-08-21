@@ -2,6 +2,7 @@ import { Peer } from 'peerjs'
 import type { DataConnection, MediaConnection } from 'peerjs'
 
 import { loadDisplayName, loadPeerId, rotatePeerId, saveDisplayName } from './identity'
+import { buildPeerConfig } from './ice'
 import {
   MediaError,
   acquireMicrophone,
@@ -131,7 +132,7 @@ export class MeshSession {
   }
 
   #openPeer(id: string): void {
-    const peer = new Peer(id, { debug: 0 })
+    const peer = new Peer(id, { debug: 0, config: buildPeerConfig(import.meta.env) })
     this.#peer = peer
 
     peer.on('open', (assignedId) => {
