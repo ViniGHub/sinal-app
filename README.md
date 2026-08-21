@@ -127,8 +127,14 @@ coordena bater na porta, discar os membros e reassumir a âncora.
 
 ### Moderação
 
-Quem se chama **PohWay** vê um botão "remover do canal" em cada participante;
-os demais só têm "sair do canal", para si mesmos.
+Quem se chama **PohWay** vê um botão "remover do canal" em cada participante, e
+também um × ao lado de cada nome na lista de ocupantes do painel — inclusive de
+canais em que não está. Os demais só têm "sair do canal", para si mesmos.
+
+A remoção à distância abre uma conexão de uso único, marcada para que o outro
+lado não a transforme em participante: ser removido não deve, primeiro, colocar
+quem removeu na sua tela. Como não há peer estabelecido nesse caso, a mensagem
+carrega o nome de quem remove em vez de o receptor consultá-lo.
 
 **Isto é uma convenção, não controle de acesso.** Nomes de exibição são
 autodeclarados e trafegam pelo data channel sem verificação, então qualquer

@@ -92,6 +92,9 @@ const INVITE_TIMEOUT_MS = 6_000
 /** Minimum gap between changes to a channel's name. */
 export const RENAME_COOLDOWN_MS = 3 * 60_000
 
+/** How long to hold a one-shot removal notice open so the message flushes. */
+const KICK_FLUSH_MS = 1_000
+
 /** An in-flight personal invite: we asked someone where to meet. */
 interface InviteRuntime {
   id: string
@@ -435,10 +438,38 @@ export class MeshSession {
    * can adopt the admin name to send one. See `moderation.ts`.
    */
   kick(peerId: string): void {
-    if (!this.#isAdmin()) return
+    if (!this.#isAdmin() || !this.#peer || peerId === this.#selfId) return
+
     const conn = this.#records.get(peerId)?.conn
-    if (conn) this.#send(conn, { t: 'kick' })
-    this.#dropPeer(peerId)
+    if (conn) {
+      this.#send(conn, { t: 'kick', by: this.#displayName() })
+      this.#dropPeer(peerId)
+      return
+    }
+
+    // They are not someone we are talking to — this is a removal from a channel
+    // we are only looking at from the panel. Open a connection whose only
+    // purpose is to deliver the notice, marked so it never becomes a
+    // participant on their side.
+    const notice = this.#peer.connect(peerId, { reliable: true, metadata: { kick: true } })
+    notice.on('open', () => {
+      this.#send(notice, { t: 'kick', by: this.#displayName() })
+      // Give the message a moment to flush before tearing the channel down.
+      setTimeout(() => notice.close(), KICK_FLUSH_MS)
+    })
+  }
+
+  /**
+   * Acts on a removal request.
+   *
+   * Honoured only from someone announcing the admin name. That check is
+   * spoofable — the name is self-declared — but it keeps the rule consistent
+   * rather than letting any peer eject anyone.
+   */
+  #handleKick(by: string): void {
+    if (!isAdminName(by)) return
+    if (this.#channel) this.leaveChannel()
+    this.#setStatus('error', 'você foi removido do canal.')
   }
 
   #isAdmin(): boolean {
@@ -813,7 +844,20 @@ export class MeshSession {
       return
     }
 
-    const metadata = conn.metadata as { probe?: boolean; invite?: boolean } | undefined
+    const metadata = conn.metadata as
+      | { probe?: boolean; invite?: boolean; kick?: boolean }
+      | undefined
+
+    // A removal from someone who is not in the channel with us. It carries a
+    // single message and nothing else, so it must not become a participant —
+    // otherwise being removed would first put the remover on our screen.
+    if (metadata?.kick === true) {
+      conn.on('data', (raw) => {
+        const message = parseWireMessage(raw)
+        if (message?.t === 'kick') this.#handleKick(message.by)
+      })
+      return
+    }
 
     // Someone checking whether we are online. The connection opening is itself
     // the whole answer, and they close it immediately — turning it into a
@@ -913,14 +957,12 @@ export class MeshSession {
         return
       }
       case 'kick': {
-        // Only honoured from someone announcing the admin name. That check is
-        // spoofable — the name is self-declared — but it keeps the rule
-        // consistent rather than letting any peer eject anyone.
-        const sender = this.#records.get(peerId)?.view.name ?? ''
-        if (!isAdminName(sender)) return
-        if (this.#channel) this.leaveChannel()
-        else this.#dropPeer(peerId)
-        this.#setStatus('error', 'você foi removido do canal.')
+        // Fall back to the name we hold for them when the message predates the
+        // `by` field.
+        const claimed = message.by || (this.#records.get(peerId)?.view.name ?? '')
+        if (!isAdminName(claimed)) return
+        if (!this.#channel) this.#dropPeer(peerId)
+        this.#handleKick(claimed)
         return
       }
       case 'screen':

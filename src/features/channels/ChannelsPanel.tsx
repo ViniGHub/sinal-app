@@ -22,6 +22,9 @@ const PRESENCE_LABEL: Record<ChannelPresence, string> = {
 /** How many names to spell out before falling back to a count. */
 const NAMES_SHOWN = 3
 
+/** Long enough for the removal to land and the target to drop its connections. */
+const EVICT_REFRESH_MS = 2_000
+
 /**
  * "Vini, Ana e mais 2" — names where we have them, a count where we do not.
  * A person who has not announced a name is counted, never invented.
@@ -109,6 +112,13 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const commitRename = (id: string) => {
     rename(id, draft)
     setEditing(null)
+  }
+
+  // Re-probe shortly after, so the list reflects the removal instead of still
+  // showing someone who has already been told to leave.
+  const evict = (peerId: string) => {
+    session.kick(peerId)
+    setTimeout(refresh, EVICT_REFRESH_MS)
   }
 
   return (
@@ -215,11 +225,34 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
                     {state === 'offline' && ` · ${timeAgo(channel.lastSeenAt)}`}
                   </span>
 
-                  {state === 'online' && (occupants[channel.id]?.length ?? 0) > 0 && (
-                    <span className={styles.occupants} title="quem está neste canal">
-                      {describeOccupants(occupants[channel.id] ?? [])}
-                    </span>
-                  )}
+                  {state === 'online' &&
+                    (occupants[channel.id]?.length ?? 0) > 0 &&
+                    (mesh.isAdmin ? (
+                      <span className={styles.occupantList}>
+                        {(occupants[channel.id] ?? [])
+                          // You cannot remove yourself; leaving is a different
+                          // action, and it lives in the control bar.
+                          .filter((occupant) => occupant.id !== mesh.selfId)
+                          .map((occupant) => (
+                            <span key={occupant.id} className={styles.occupantChip}>
+                              {occupant.name || shortId(occupant.id)}
+                              <button
+                                type="button"
+                                className={styles.evict}
+                                onClick={() => evict(occupant.id)}
+                                aria-label={`Remover ${occupant.name || occupant.id} do canal`}
+                                title="remover do canal"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                      </span>
+                    ) : (
+                      <span className={styles.occupants} title="quem está neste canal">
+                        {describeOccupants(occupants[channel.id] ?? [])}
+                      </span>
+                    ))}
                 </div>
 
                 <div className={styles.actions}>

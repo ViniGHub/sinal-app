@@ -121,6 +121,14 @@ describe('parseWireMessage', () => {
     expect(parseWireMessage({ t: 'mic', micMuted: true })).toEqual({ t: 'mic', micMuted: true })
   })
 
+  it('carries who claims to be removing someone', () => {
+    // The claim travels in the message because a removal can arrive from
+    // someone not in the channel, leaving no established peer to name.
+    expect(parseWireMessage({ t: 'kick', by: 'PohWay' })).toEqual({ t: 'kick', by: 'PohWay' })
+    // Absent from an older build; the receiver falls back to what it holds.
+    expect(parseWireMessage({ t: 'kick' })).toEqual({ t: 'kick', by: '' })
+  })
+
   it('refuses a channel answer that is not a usable id', () => {
     // This id gets joined, and joining an empty channel claims it. A malformed
     // value must never reach that path.

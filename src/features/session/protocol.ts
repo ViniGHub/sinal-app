@@ -36,8 +36,14 @@ export type WireMessage =
    * invited never learns a peer id from this — only where to go.
    */
   | { t: 'channel'; id: string }
-  /** Asks the recipient to leave the channel. Honoured only from an admin. */
-  | { t: 'kick' }
+  /**
+   * Asks the recipient to leave the channel. Honoured only from an admin.
+   *
+   * `by` carries the sender's claimed name because a removal can arrive over a
+   * one-shot connection from someone who is not in the channel at all, so
+   * there is no established peer to read a name from.
+   */
+  | { t: 'kick'; by: string }
   /**
    * The channel's shared name. Carries who set it and when, so every node can
    * settle disagreements the same way without needing message ordering.
@@ -164,7 +170,9 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
     case 'attention':
       return { t: 'attention', attention: cleanAttention(msg['attention']) }
     case 'kick':
-      return { t: 'kick' }
+      // Empty when it came from a build that predates the field; the receiver
+      // falls back to the name it already holds for that peer.
+      return { t: 'kick', by: sanitizeName(msg['by']) }
     case 'channel-name': {
       const name = sanitizeChannelName(msg['name'])
       const from = msg['from']
