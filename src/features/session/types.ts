@@ -3,6 +3,16 @@ import type { RemotePeer } from '@/features/participants/types'
 
 export type StatusKind = 'idle' | 'busy' | 'ok' | 'error'
 
+/** The channel we are in, if any. */
+export interface ChannelMembership {
+  id: string
+  /**
+   * Whether we are the one holding the channel id. The anchor is a rendezvous
+   * point for joiners, not a relay — media never passes through it.
+   */
+  isAnchor: boolean
+}
+
 export interface SessionStatus {
   kind: StatusKind
   message: string
@@ -21,6 +31,8 @@ export interface MeshSnapshot {
   selfId: string | null
   selfName: string
   status: SessionStatus
+  /** Null when connected peer-to-peer without a channel. */
+  channel: ChannelMembership | null
   peers: RemotePeer[]
   micMuted: boolean
   /** Whether we are currently sharing our screen. */

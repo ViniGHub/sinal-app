@@ -71,17 +71,47 @@ src/
 └── styles/                  tokens de design + reset global
 ```
 
-### Canais salvos e presença
+### Canais
 
-Estando em uma sala, o botão “salvar” no participante guarda o ID dele como um
-canal. O painel lateral lista os salvos e diz quais hosts estão ativos agora.
+Um canal tem identidade própria: ele não é uma pessoa, e sobrevive à saída de
+quem o criou.
 
-O broker não tem endpoint de “esse ID está online?”, então a única resposta
+O broker só conhece IDs de peer, e garante que cada um tem **um único dono**.
+Essa unicidade é o truque inteiro: o canal *é* um ID de peer, e quem está
+dentro dele disputa registrá-lo. Exatamente um ganha — o **âncora** — e os
+demais o encontram discando o mesmo ID. Sem protocolo de eleição e sem
+infraestrutura nova: o broker é o cadeado.
+
+```
+entrar no canal X
+   │
+   ├── alguém segura X ──► ele responde `members` ──► disco todos ──► malha
+   │
+   └── ninguém segura X ──► eu registro X ──► virei o âncora (canal criado)
+```
+
+Não existe passo de "criar": entrar num canal vazio *é* criá-lo.
+
+O âncora é um ponto de encontro, **nunca um relay** — ele entrega a lista de
+membros e nada mais. Voz e tela continuam ponto a ponto. Quando o âncora sai, o
+ID fica vago, os membros restantes correm por ele com atraso aleatório, e a sala
+sobrevive.
+
+[`ChannelAnchor`](src/features/channels/ChannelAnchor.ts) segura o segundo
+`Peer`; [`MeshSession.joinChannel`](src/features/session/MeshSession.ts)
+coordena bater na porta, discar os membros e reassumir a âncora.
+
+### Presença
+
+O broker não tem endpoint de "esse ID está online?", então a única resposta
 honesta vem de abrir um data channel e ver se ele completa —
 [`MeshSession.probePeer`](src/features/session/MeshSession.ts). A conexão é
 fechada assim que responde, e a sondagem carrega `metadata.probe` para que o
-host **não** a transforme em participante: sem isso, cada checagem colocaria
-um bloco fantasma na tela de todo mundo na sala.
+outro lado **não** a transforme em participante: sem isso, cada checagem
+colocaria um bloco fantasma na tela de todo mundo na sala.
+
+Para um canal, isso responde "tem alguém aí dentro?" em vez de "essa pessoa
+está online?" — que é a pergunta que realmente importa.
 
 Só há sondagem com o painel aberto. Uma lista de favoritos não deve gerar
 tráfego em segundo plano, e quem já está conectado é dado como ativo sem gastar

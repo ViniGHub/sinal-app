@@ -1,6 +1,7 @@
 import { Peer } from 'peerjs'
 import type { DataConnection, MediaConnection } from 'peerjs'
 
+import { ChannelAnchor } from '@/features/channels/ChannelAnchor'
 import type { ChatMessage } from '@/features/chat/types'
 import {
   loadDisplayName,
@@ -57,6 +58,29 @@ const DIAL_FALLBACK_MS = 8_000
  */
 const PROBE_TIMEOUT_MS = 6_000
 
+/**
+ * How long to wait before racing for a vacated anchor. The broker holds a
+ * disconnected id for a moment, and the jitter keeps every remaining member
+ * from stampeding the same instant.
+ */
+const RECLAIM_BASE_MS = 1_500
+const RECLAIM_JITTER_MS = 2_000
+
+/** Our participation in a channel. Null when connected peer-to-peer only. */
+interface ChannelRuntime {
+  id: string
+  /** Our link to whoever holds the anchor, when that is not us. */
+  conn: DataConnection | null
+  /** Set once we are the one holding the channel id. */
+  anchor: ChannelAnchor | null
+  reclaimTimer: ReturnType<typeof setTimeout> | null
+  /** Detects an id that answers but is a person, not a channel. */
+  knockTimer: ReturnType<typeof setTimeout> | null
+}
+
+/** How long an answering id has to identify itself as a channel. */
+const KNOCK_TIMEOUT_MS = 5_000
+
 /** An in-flight presence check. Deliberately never becomes a participant. */
 interface Probe {
   promise: Promise<boolean>
@@ -85,6 +109,7 @@ export class MeshSession {
 
   #records = new Map<string, PeerRecord>()
   #probes = new Map<string, Probe>()
+  #channel: ChannelRuntime | null = null
   #messages: ChatMessage[] = []
   #listeners = new Set<() => void>()
 
@@ -145,6 +170,15 @@ export class MeshSession {
     // Settle rather than drop: a caller awaiting a probe would hang forever.
     for (const peerId of [...this.#probes.keys()]) this.#settleProbe(peerId, false)
 
+    const channel = this.#channel
+    this.#channel = null
+    if (channel) {
+      if (channel.reclaimTimer) clearTimeout(channel.reclaimTimer)
+      if (channel.knockTimer) clearTimeout(channel.knockTimer)
+      channel.conn?.close()
+      channel.anchor?.destroy()
+    }
+
     stopStream(this.#mic)
     stopStream(this.#silent)
     stopStream(this.#screen)
@@ -203,6 +237,13 @@ export class MeshSession {
         // for. This is the only signal the broker gives us for "not online".
         if (target && this.#probes.has(target)) {
           this.#settleProbe(target, false)
+          return
+        }
+        // Nobody holds the channel id: the channel is empty, so we take it and
+        // become the room that later joiners will find. This is also how a
+        // brand new channel comes into existence — there is no create step.
+        if (target && this.#channel?.id === target && !this.#channel.anchor) {
+          void this.#claimAnchor()
           return
         }
         if (target && this.#records.has(target)) this.#dropPeer(target)
@@ -315,6 +356,143 @@ export class MeshSession {
     const at = Date.now()
     this.#broadcast({ t: 'chat', text, at })
     this.#pushMessage('self', this.#displayName(), text, at)
+  }
+
+  // -------------------------------------------------------------- channels
+
+  /**
+   * Enters a channel by its id.
+   *
+   * Two outcomes, and the caller does not need to know which: either someone
+   * is already holding the channel id and we ask them who is inside, or nobody
+   * is and we take the id ourselves, becoming the room others will find.
+   */
+  joinChannel(channelId: string): void {
+    if (!this.#peer || this.#destroyed || !isValidPeerId(channelId)) {
+      this.#setStatus('error', 'esse ID de canal não parece válido.')
+      return
+    }
+    if (channelId === this.#selfId) {
+      this.#setStatus('error', 'esse é o seu próprio ID.')
+      return
+    }
+    if (this.#channel?.id === channelId) return
+
+    this.leaveChannel()
+    this.#channel = {
+      id: channelId,
+      conn: null,
+      anchor: null,
+      reclaimTimer: null,
+      knockTimer: null,
+    }
+    this.#setStatus('busy', `entrando no canal ${shortId(channelId)}…`)
+    this.#knockAnchor()
+    this.#publish()
+  }
+
+  /** Leaves the channel and everyone met through it. */
+  leaveChannel(): void {
+    const channel = this.#channel
+    if (!channel) return
+    this.#channel = null
+
+    if (channel.reclaimTimer) clearTimeout(channel.reclaimTimer)
+    if (channel.knockTimer) clearTimeout(channel.knockTimer)
+    channel.conn?.close()
+    channel.anchor?.destroy()
+
+    for (const peerId of [...this.#records.keys()]) this.#dropPeer(peerId)
+    this.#setStatus('idle', 'você saiu do canal.')
+    this.#publish()
+  }
+
+  /** Knocks on the channel id to ask who is inside. */
+  #knockAnchor(): void {
+    const channel = this.#channel
+    if (!channel || !this.#peer) return
+
+    const conn = this.#peer.connect(channel.id, { reliable: true, metadata: { channel: true } })
+    channel.conn = conn
+
+    // An id that accepts the connection but never announces its members is a
+    // person, not a channel. Say so instead of hanging on "entrando…".
+    channel.knockTimer = setTimeout(() => {
+      channel.knockTimer = null
+      if (this.#channel !== channel || channel.anchor) return
+      this.#setStatus('error', 'esse ID respondeu, mas não é um canal.')
+    }, KNOCK_TIMEOUT_MS)
+
+    conn.on('data', (raw) => {
+      const message = parseWireMessage(raw)
+      if (message?.t !== 'members') return
+
+      if (channel.knockTimer) {
+        clearTimeout(channel.knockTimer)
+        channel.knockTimer = null
+      }
+      // Only the joiner knows the full list, so the joiner dials everyone.
+      // Applying the usual initiator rule here would leave us waiting on peers
+      // that have no idea we exist yet.
+      for (const memberId of message.peers) {
+        if (memberId === this.#selfId || this.#records.has(memberId)) continue
+        this.#ensureRecord(memberId)
+        this.#dial(memberId)
+      }
+      this.#setStatus('ok', `no canal ${shortId(channel.id)}.`)
+    })
+
+    // Losing the anchor means whoever held the channel id left. The id falls
+    // vacant and the remaining members race for it, so the room survives.
+    conn.on('close', () => this.#scheduleReclaim())
+    conn.on('error', () => this.#scheduleReclaim())
+  }
+
+  #scheduleReclaim(): void {
+    const channel = this.#channel
+    if (!channel || channel.anchor || channel.reclaimTimer || this.#destroyed) return
+
+    const delay = RECLAIM_BASE_MS + Math.random() * RECLAIM_JITTER_MS
+    channel.reclaimTimer = setTimeout(() => {
+      channel.reclaimTimer = null
+      void this.#claimAnchor()
+    }, delay)
+  }
+
+  async #claimAnchor(): Promise<void> {
+    const channel = this.#channel
+    if (!channel || channel.anchor) return
+
+    const anchor = new ChannelAnchor(channel.id, () => this.#channelRoster())
+    channel.anchor = anchor
+    const outcome = await anchor.claim()
+
+    // The user may have left, or joined elsewhere, while the broker answered.
+    if (this.#destroyed || this.#channel !== channel) {
+      anchor.destroy()
+      return
+    }
+
+    if (outcome === 'anchored') {
+      this.#setStatus('ok', `no canal ${shortId(channel.id)} — você está ancorando.`)
+      this.#publish()
+      return
+    }
+
+    channel.anchor = null
+    if (outcome === 'taken') {
+      // Someone beat us to it by a hair. They are the room now; go knock.
+      this.#knockAnchor()
+    } else {
+      this.#setStatus('error', 'não foi possível entrar no canal.')
+    }
+    this.#publish()
+  }
+
+  /** Who to advertise to a joiner: us plus everyone we can currently see. */
+  #channelRoster(): string[] {
+    const ids = [...this.#records.keys()]
+    return this.#selfId ? [this.#selfId, ...ids] : ids
   }
 
   /**
@@ -656,6 +834,9 @@ export class MeshSession {
       selfId: this.#selfId,
       selfName: this.#selfName,
       status: this.#status,
+      channel: this.#channel
+        ? { id: this.#channel.id, isAnchor: this.#channel.anchor !== null }
+        : null,
       peers: [...this.#records.values()]
         .map((record) => record.view)
         .sort((a, b) => a.id.localeCompare(b.id)),

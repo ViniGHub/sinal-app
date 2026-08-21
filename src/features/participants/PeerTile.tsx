@@ -75,7 +75,7 @@ export function PeerTile({ peer }: { peer: RemotePeer }) {
           type="button"
           className={`${styles.save} ${saved ? styles.saved : ''}`}
           disabled={saved}
-          onClick={() => save(peer.id, peer.name)}
+          onClick={() => save(peer.id, peer.name, 'peer')}
           title={saved ? 'já está nos seus canais' : 'salvar nos seus canais'}
         >
           {saved ? '★ salvo' : '☆ salvar'}

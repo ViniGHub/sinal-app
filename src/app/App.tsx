@@ -22,15 +22,17 @@ export function App() {
   const invited = useRef(false)
   const chatOpen = panel === 'chat'
 
-  // An invite link carries the host's id in the fragment. Dial it once, as
-  // soon as the broker has given us an id of our own to dial from.
+  // An invite link carries a channel or a person in the fragment. Act on it
+  // once, as soon as the broker has given us an id of our own to dial from.
   useEffect(() => {
     if (invited.current || !mesh.selfId) return
-    const target = readInvite()
-    if (!target) return
+    const invite = readInvite()
+    if (!invite) return
     invited.current = true
     clearInvite()
-    if (target !== mesh.selfId) session.connectTo(target)
+    if (invite.id === mesh.selfId) return
+    if (invite.kind === 'channel') session.joinChannel(invite.id)
+    else session.connectTo(invite.id)
   }, [mesh.selfId, session])
 
   useEffect(() => {

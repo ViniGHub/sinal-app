@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MAX_CHANNELS, loadChannels, saveChannels } from '../storage'
+import { isValidPeerId } from '@/features/session/protocol'
+
+import { MAX_CHANNELS, generateChannelId, loadChannels, saveChannels } from '../storage'
 import type { SavedChannel } from '../types'
 
 const KEY = 'sinal.channels'
@@ -22,8 +24,9 @@ function installStorage(): Storage {
   return store
 }
 
-const channel = (hostId: string, name = 'Sala'): SavedChannel => ({
-  hostId,
+const channel = (id: string, name = 'Sala', kind: SavedChannel['kind'] = 'channel'): SavedChannel => ({
+  id,
+  kind,
   name,
   savedAt: 1,
   lastSeenAt: 2,
@@ -55,22 +58,48 @@ describe('channel storage', () => {
     expect(loadChannels()).toEqual([])
   })
 
-  it('drops entries whose host id could not be dialled anyway', () => {
+  it('drops entries whose id could not be dialled anyway', () => {
     store.setItem(
       KEY,
-      JSON.stringify([channel(A), { hostId: '<script>' }, { name: 'sem id' }, null, 42]),
+      JSON.stringify([channel(A), { id: '<script>' }, { name: 'sem id' }, null, 42]),
     )
     expect(loadChannels()).toEqual([channel(A)])
   })
 
   it('repairs missing timestamps rather than rejecting the entry', () => {
-    store.setItem(KEY, JSON.stringify([{ hostId: A, name: 'Sala' }]))
-    expect(loadChannels()).toEqual([{ hostId: A, name: 'Sala', savedAt: 0, lastSeenAt: null }])
+    store.setItem(KEY, JSON.stringify([{ id: A, kind: 'channel', name: 'Sala' }]))
+    expect(loadChannels()).toEqual([
+      { id: A, kind: 'channel', name: 'Sala', savedAt: 0, lastSeenAt: null },
+    ])
+  })
+
+  it('migrates bookmarks written before channels existed', () => {
+    // The old shape had 'hostId' and always pointed at a person, so migrating
+    // it to kind 'peer' keeps it working instead of silently losing it.
+    store.setItem(KEY, JSON.stringify([{ hostId: A, name: 'Vini', savedAt: 7, lastSeenAt: 9 }]))
+    expect(loadChannels()).toEqual([
+      { id: A, kind: 'peer', name: 'Vini', savedAt: 7, lastSeenAt: 9 },
+    ])
+  })
+
+  it('treats an unrecognised kind as a person rather than a channel', () => {
+    // Guessing 'channel' would make us knock on a person's id and hang.
+    store.setItem(KEY, JSON.stringify([{ id: A, kind: 'sala', name: 'X' }]))
+    expect(loadChannels()[0]?.kind).toBe('peer')
   })
 
   it('collapses duplicates of the same host', () => {
     store.setItem(KEY, JSON.stringify([channel(A, 'Primeiro'), channel(A, 'Segundo')]))
     expect(loadChannels()).toEqual([channel(A, 'Primeiro')])
+  })
+
+  it('mints channel ids the broker will accept', () => {
+    vi.stubGlobal('crypto', { getRandomValues: (a: Uint8Array) => a.fill(7) })
+    const id = generateChannelId()
+    // Must satisfy the same rule as any peer id — a channel *is* a peer id
+    // that someone inside the channel is holding.
+    expect(isValidPeerId(id)).toBe(true)
+    expect(id.startsWith('sinal-c-')).toBe(true)
   })
 
   it('caps how much a hand-edited blob can load', () => {

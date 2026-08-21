@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import { useCopy } from '@/shared/hooks/useCopy'
+import { buildChannelInviteUrl } from '@/features/identity/invite'
 import { shortId } from '@/features/session/protocol'
 import { useMesh, useSession } from '@/features/session/useMesh'
+import { generateChannelId } from './storage'
 import { useChannels } from './useChannels'
 import { usePresence } from './usePresence'
-import type { ChannelPresence } from './types'
+import type { ChannelPresence, SavedChannel } from './types'
 import styles from './ChannelsPanel.module.css'
 
 const PRESENCE_LABEL: Record<ChannelPresence, string> = {
   unknown: 'sem checar',
   checking: 'checando…',
   online: 'ativo',
-  offline: 'fora do ar',
+  offline: 'vazio',
 }
 
 /** "há 3 min", "há 2 h", "há 4 d" — enough precision for a bookmark list. */
@@ -28,10 +31,11 @@ function timeAgo(at: number | null): string {
 export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const session = useSession()
   const mesh = useMesh()
-  const { channels, remove, rename, markSeen } = useChannels()
+  const { channels, save, remove, rename, markSeen } = useChannels()
+  const [copied, copy] = useCopy()
 
-  const hostIds = useMemo(() => channels.map((channel) => channel.hostId), [channels])
-  const { presence, refresh } = usePresence(hostIds, open, markSeen)
+  const ids = useMemo(() => channels.map((channel) => channel.id), [channels])
+  const { presence, refresh } = usePresence(ids, open, markSeen)
 
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -47,17 +51,29 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
   if (!open) return null
 
+  const current = mesh.channel
   const connectedIds = new Set(mesh.peers.map((peer) => peer.id))
 
-  const commitRename = (hostId: string) => {
-    rename(hostId, draft)
+  const createChannel = () => {
+    const id = generateChannelId()
+    save(id, 'Novo canal', 'channel')
+    session.joinChannel(id)
+  }
+
+  const enter = (channel: SavedChannel) => {
+    if (channel.kind === 'channel') session.joinChannel(channel.id)
+    else session.connectTo(channel.id)
+  }
+
+  const commitRename = (id: string) => {
+    rename(id, draft)
     setEditing(null)
   }
 
   return (
-    <aside className={styles.panel} aria-label="Canais salvos">
+    <aside className={styles.panel} aria-label="Canais">
       <header className={styles.head}>
-        <span>canais salvos</span>
+        <span>canais</span>
         <div className={styles.headActions}>
           <button type="button" className={styles.ghost} onClick={refresh}>
             checar
@@ -68,29 +84,66 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
         </div>
       </header>
 
+      {current && (
+        <div className={styles.current}>
+          <div>
+            <span className={styles.currentLabel}>
+              você está em {shortId(current.id)}
+              {current.isAnchor && ' · ancorando'}
+            </span>
+            <span className={styles.currentHint}>
+              {current.isAnchor
+                ? 'você segura este canal; se sair, outro membro assume'
+                : 'outro membro está segurando este canal'}
+            </span>
+          </div>
+          <div className={styles.currentActions}>
+            <button
+              type="button"
+              className={styles.ghost}
+              onClick={() => copy(buildChannelInviteUrl(current.id))}
+            >
+              {copied ? 'copiado' : 'convite'}
+            </button>
+            <button
+              type="button"
+              className={styles.ghost}
+              onClick={() => session.leaveChannel()}
+            >
+              sair
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button type="button" className={styles.create} onClick={createChannel}>
+        + criar canal
+      </button>
+
       <div className={styles.list}>
         {channels.length === 0 ? (
           <p className={styles.hint}>
-            nenhum canal salvo ainda — entre em um e toque em “salvar” no participante para
-            guardá-lo aqui.
+            nenhum canal salvo — crie um acima, ou salve alguém com quem você já esteja
+            conversando.
           </p>
         ) : (
           channels.map((channel) => {
-            const state = presence[channel.hostId] ?? 'unknown'
-            const joined = connectedIds.has(channel.hostId)
+            const state = presence[channel.id] ?? 'unknown'
+            const here = current?.id === channel.id
+            const joined = here || connectedIds.has(channel.id)
 
             return (
-              <article key={channel.hostId} className={styles.row}>
+              <article key={channel.id} className={`${styles.row} ${here ? styles.rowHere : ''}`}>
                 <div className={styles.info}>
-                  {editing === channel.hostId ? (
+                  {editing === channel.id ? (
                     <input
                       className={styles.rename}
                       value={draft}
                       autoFocus
                       onChange={(event) => setDraft(event.target.value)}
-                      onBlur={() => commitRename(channel.hostId)}
+                      onBlur={() => commitRename(channel.id)}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') commitRename(channel.hostId)
+                        if (event.key === 'Enter') commitRename(channel.id)
                         if (event.key === 'Escape') setEditing(null)
                       }}
                     />
@@ -99,17 +152,18 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
                       type="button"
                       className={styles.name}
                       onClick={() => {
-                        setEditing(channel.hostId)
+                        setEditing(channel.id)
                         setDraft(channel.name)
                       }}
                       title="renomear"
                     >
-                      {channel.name || shortId(channel.hostId)}
+                      {channel.name || shortId(channel.id)}
                     </button>
                   )}
 
                   <span className={styles.meta}>
                     <span className={`${styles.dot} ${styles[state]}`} aria-hidden="true" />
+                    {channel.kind === 'peer' ? 'pessoa · ' : ''}
                     {PRESENCE_LABEL[state]}
                     {state === 'offline' && ` · ${timeAgo(channel.lastSeenAt)}`}
                   </span>
@@ -119,16 +173,16 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
                   <button
                     type="button"
                     className={styles.join}
-                    disabled={joined || state !== 'online'}
-                    onClick={() => session.connectTo(channel.hostId)}
+                    disabled={joined || (channel.kind === 'peer' && state !== 'online')}
+                    onClick={() => enter(channel)}
                   >
-                    {joined ? 'na sala' : 'entrar'}
+                    {joined ? 'aqui' : 'entrar'}
                   </button>
                   <button
                     type="button"
                     className={styles.ghost}
-                    onClick={() => remove(channel.hostId)}
-                    aria-label={`Remover ${channel.name || channel.hostId}`}
+                    onClick={() => remove(channel.id)}
+                    aria-label={`Remover ${channel.name || channel.id}`}
                   >
                     remover
                   </button>

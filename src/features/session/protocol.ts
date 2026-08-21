@@ -20,6 +20,8 @@ export type WireMessage =
   | { t: 'mic'; micMuted: boolean }
   | { t: 'screen'; sharing: boolean }
   | { t: 'chat'; text: string; at: number }
+  /** Sent by a channel anchor to whoever just knocked: who is inside. */
+  | { t: 'members'; peers: string[] }
 
 /** PeerJS ids are restricted to this alphabet by the public broker. */
 const PEER_ID_RE = /^[A-Za-z0-9_-]{4,64}$/
@@ -68,6 +70,8 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
         sharing: msg['sharing'] === true,
         peers: cleanRoster(msg['peers']),
       }
+    case 'members':
+      return { t: 'members', peers: cleanRoster(msg['peers']) }
     case 'name':
       return { t: 'name', name: sanitizeName(msg['name']) }
     case 'mic':

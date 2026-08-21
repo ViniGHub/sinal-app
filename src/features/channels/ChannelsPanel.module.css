@@ -41,6 +41,57 @@
 
 .close:hover { color: var(--text); }
 
+.current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.currentLabel {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--signal);
+}
+
+.currentHint {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  margin-top: 2px;
+}
+
+.currentActions {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.create {
+  margin: var(--space-3) var(--space-3) 0;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.create:hover {
+  color: var(--signal);
+  border-color: var(--signal-dim);
+}
+
+.rowHere {
+  border-color: var(--signal-dim);
+}
+
 .list {
   flex: 1;
   overflow-y: auto;
