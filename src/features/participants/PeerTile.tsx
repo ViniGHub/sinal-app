@@ -1,7 +1,8 @@
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
-import type { AttentionState, RemotePeer } from './types'
+import { ExpandChoice } from './ExpandChoice'
+import type { AttentionState, RemotePeer, SpotlightTarget } from './types'
 import styles from './PeerTile.module.css'
 
 const STATUS_LABEL: Record<RemotePeer['status'], string> = {
@@ -30,7 +31,7 @@ const ATTENTION_TITLE: Record<AttentionState, string> = {
 
 interface PeerTileProps {
   peer: RemotePeer
-  onExpand: (target: string) => void
+  onExpand: (target: SpotlightTarget) => void
   /** Whether the local user may remove people from the channel. */
   isAdmin: boolean
 }
@@ -65,11 +66,12 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
 
         {!hasVideo && <p className={styles.placeholder}>sem vídeo</p>}
 
-        {hasVideo && (
-          <button type="button" className={styles.expand} onClick={() => onExpand(peer.id)}>
-            expandir
-          </button>
-        )}
+        <ExpandChoice
+          id={peer.id}
+          hasScreen={peer.screenStream !== null}
+          hasCamera={peer.cameraStream !== null}
+          onExpand={onExpand}
+        />
       </div>
 
       {/* The voice channel. Hidden, but it is what actually makes the call. */}

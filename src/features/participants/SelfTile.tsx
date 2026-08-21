@@ -1,4 +1,6 @@
 import { useMediaStream } from '@/features/media/useMediaStream'
+import { ExpandChoice } from './ExpandChoice'
+import type { SpotlightTarget } from './types'
 import styles from './PeerTile.module.css'
 
 interface SelfTileProps {
@@ -8,7 +10,7 @@ interface SelfTileProps {
   screen: MediaStream | null
   /** Our camera, or null when it is off. */
   camera: MediaStream | null
-  onExpand: (target: string) => void
+  onExpand: (target: SpotlightTarget) => void
   /** Connected peers whose tab is in front of them. */
   watching: number
   /** Connected peers in total. */
@@ -56,11 +58,12 @@ export function SelfTile({
 
         {!hasVideo && <p className={styles.placeholder}>câmera e tela desligadas</p>}
 
-        {hasVideo && (
-          <button type="button" className={styles.expand} onClick={() => onExpand('self')}>
-            expandir
-          </button>
-        )}
+        <ExpandChoice
+          id="self"
+          hasScreen={screen !== null}
+          hasCamera={camera !== null}
+          onExpand={onExpand}
+        />
       </div>
 
       <div className={styles.meta}>

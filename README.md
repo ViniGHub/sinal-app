@@ -206,6 +206,21 @@ espelhada, como em qualquer app de vídeo.
 A captura da câmera pede `audio: false` de propósito: a voz já trafega na
 chamada de áudio, e pedir áudio aqui mandaria a todos uma segunda cópia dela.
 
+**Expandir** oferece as três opções quando a pessoa tem tela e câmera: *ambos*
+(câmera flutuando sobre a tela), *tela* ou *câmera*. Com um vídeo só não há o
+que escolher, e o controle volta a ser um botão único.
+
+A câmera flutuante é arrastável e **encaixa no canto mais próximo** ao soltar,
+com as setas do teclado movendo entre cantos. Cantos em vez de coordenadas
+livres porque um canto continua válido em qualquer tamanho de janela — a
+inserção nunca acaba metade fora da tela depois de um redimensionamento, e a
+posição guardada nunca aponta para um lugar inalcançável. Ela é lembrada entre
+sessões.
+
+Se a fonte em destaque some — a pessoa parou de compartilhar, ou desligou a
+câmera — o destaque cai para a que sobrou, em vez de fechar e devolver o
+espectador à grade.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

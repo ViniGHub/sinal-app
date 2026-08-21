@@ -61,10 +61,22 @@
   margin: 0;
 }
 
-.expand {
+.expandRow {
   position: absolute;
   right: var(--space-2);
   bottom: var(--space-2);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.screen:hover .expandRow,
+.expandRow:focus-within {
+  opacity: 1;
+}
+
+.expand {
   background: rgba(5, 7, 10, 0.75);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -72,12 +84,13 @@
   padding: 3px 8px;
   font-size: 10px;
   font-family: var(--font-mono);
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  white-space: nowrap;
 }
 
-.screen:hover .expand,
-.expand:focus-visible { opacity: 1; }
+.expand:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
 
 .meta {
   padding: var(--space-3);

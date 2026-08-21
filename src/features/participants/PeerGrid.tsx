@@ -1,11 +1,11 @@
 import { useMesh } from '@/features/session/useMesh'
 import { PeerTile } from './PeerTile'
 import { SelfTile } from './SelfTile'
+import type { SpotlightTarget } from './types'
 import styles from './PeerGrid.module.css'
 
 interface PeerGridProps {
-  /** Receives a peer id, or 'self' for our own capture. */
-  onExpand: (target: string) => void
+  onExpand: (target: SpotlightTarget) => void
 }
 
 /**

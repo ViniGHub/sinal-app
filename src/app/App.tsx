@@ -7,6 +7,7 @@ import { clearInvite, readInvite } from '@/features/identity/invite'
 import { ControlBar } from '@/features/media/ControlBar'
 import { PeerGrid } from '@/features/participants/PeerGrid'
 import { SpotlightView } from '@/features/participants/SpotlightView'
+import type { SpotlightTarget } from '@/features/participants/types'
 import { useFullscreen } from '@/shared/hooks/useFullscreen'
 import { ConnectForm } from '@/features/session/ConnectForm'
 import { StatusLine } from '@/features/session/StatusLine'
@@ -21,8 +22,8 @@ export function App() {
   // screen, so opening one has to close the other.
   const [panel, setPanel] = useState<'chat' | 'channels' | null>(null)
   const [readCount, setReadCount] = useState(0)
-  // Peer id of the expanded stream, or 'self' for our own capture.
-  const [spotlight, setSpotlight] = useState<string | null>(null)
+  // Which participant's video fills the page, and which of their sources.
+  const [spotlight, setSpotlight] = useState<SpotlightTarget | null>(null)
   const invited = useRef(false)
   const chatOpen = panel === 'chat'
 
@@ -61,25 +62,45 @@ export function App() {
   const closePanel = useCallback(() => setPanel(null), [])
   const closeSpotlight = useCallback(() => setSpotlight(null), [])
 
-  // The screen wins when both are on: it is the one with detail worth filling
-  // the page with. The camera is what gets expanded when it is all there is.
+  /**
+   * Resolves the chosen target into the streams to show.
+   *
+   * A source can disappear while it is expanded — they stop sharing, or turn
+   * the camera off. Rather than closing outright, it falls back to whatever is
+   * still live, and only closes when nothing is.
+   */
   const spotlighted = useMemo(() => {
     if (!spotlight) return null
 
-    if (spotlight === 'self') {
-      if (mesh.localScreen) return { stream: mesh.localScreen, label: 'sua tela', muted: true }
-      if (mesh.localCamera) return { stream: mesh.localCamera, label: 'sua câmera', muted: true }
-      return null
+    const own = spotlight.id === 'self'
+    const peer = own ? null : mesh.peers.find((candidate) => candidate.id === spotlight.id)
+    // They left the room while we were watching them.
+    if (!own && !peer) return null
+
+    const screen = peer ? peer.screenStream : mesh.localScreen
+    const camera = peer ? peer.cameraStream : mesh.localCamera
+    if (!screen && !camera) return null
+
+    const who = peer ? peer.name : 'você'
+    const wantsScreen = spotlight.source !== 'camera'
+    const wantsCamera = spotlight.source !== 'screen'
+
+    const showScreen = wantsScreen ? screen : null
+    const showCamera = wantsCamera ? camera : null
+    if (!showScreen && !showCamera) {
+      // The requested source went away but the other one is live; show that
+      // instead of dropping the viewer back to the grid.
+      return {
+        screen,
+        camera,
+        label: `${screen ? 'tela' : 'câmera'} de ${who}`,
+        muted: own,
+        mirrored: own,
+      }
     }
 
-    const peer = mesh.peers.find((candidate) => candidate.id === spotlight)
-    if (peer?.screenStream) {
-      return { stream: peer.screenStream, label: `tela de ${peer.name}`, muted: false }
-    }
-    if (peer?.cameraStream) {
-      return { stream: peer.cameraStream, label: `câmera de ${peer.name}`, muted: true }
-    }
-    return null
+    const label = showScreen && showCamera ? `${who}` : showScreen ? `tela de ${who}` : `câmera de ${who}`
+    return { screen: showScreen, camera: showCamera, label, muted: own, mirrored: own }
   }, [spotlight, mesh.localScreen, mesh.localCamera, mesh.peers])
 
   // The stream can vanish under us — they stop sharing, or leave entirely.
@@ -123,9 +144,11 @@ export function App() {
 
       {spotlighted && (
         <SpotlightView
-          stream={spotlighted.stream}
+          screen={spotlighted.screen}
+          camera={spotlighted.camera}
           label={spotlighted.label}
           muted={spotlighted.muted}
+          mirrored={spotlighted.mirrored}
           // Escape belongs to whichever panel is open; only when none is does
           // it fall through to closing the spotlight.
           escapeCloses={panel === null}

@@ -8,9 +8,12 @@
   bottom: var(--control-bar-height);
   background: #05070a;
   z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 .video {
@@ -18,6 +21,62 @@
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+.mirrored {
+  transform: scaleX(-1);
+}
+
+/* The camera when it is the only thing being shown. */
+.fill {
+  position: absolute;
+  inset: 0;
+}
+
+/* The camera floating over a shared screen. */
+.inset {
+  position: absolute;
+  width: clamp(140px, 22%, 320px);
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  background: #05070a;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  cursor: grab;
+  touch-action: none;
+  transition: inset 0.18s ease;
+}
+
+.inset video {
+  object-fit: cover;
+}
+
+.dragging {
+  cursor: grabbing;
+  /* No easing while a finger or pointer is on it — it must track exactly. */
+  transition: none;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+}
+
+.topLeft {
+  top: var(--space-4);
+  left: var(--space-4);
+}
+
+.topRight {
+  top: var(--space-4);
+  right: var(--space-4);
+}
+
+.bottomLeft {
+  bottom: var(--space-4);
+  left: var(--space-4);
+}
+
+.bottomRight {
+  bottom: var(--space-4);
+  right: var(--space-4);
 }
 
 .bar {

@@ -1,5 +1,23 @@
 export type PeerStatus = 'connecting' | 'connected' | 'closed'
 
+/** What to fill the page with when a participant's video is expanded. */
+export type VideoSource =
+  /** The shared screen alone. */
+  | 'screen'
+  /** The camera alone. */
+  | 'camera'
+  /** The screen, with the camera floating over it. */
+  | 'both'
+
+export interface SpotlightTarget {
+  /** Peer id, or 'self' for our own capture. */
+  id: string
+  source: VideoSource
+}
+
+/** Where the floating camera sits. Corners only, so it can never be lost. */
+export type CameraCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight'
+
 /**
  * Someone inside a channel, as announced by its anchor.
  *
