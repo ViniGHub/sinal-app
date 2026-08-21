@@ -1,41 +1,44 @@
-import { LocalPreview } from './LocalPreview'
+import { useMesh } from '@/features/session/useMesh'
 import { PeerTile } from './PeerTile'
-import type { RemotePeer } from './types'
+import { SelfTile } from './SelfTile'
 import styles from './PeerGrid.module.css'
 
 interface PeerGridProps {
-  peers: RemotePeer[]
-  localScreen: MediaStream | null
   /** Receives a peer id, or 'self' for our own capture. */
   onExpand: (target: string) => void
-  isAdmin: boolean
 }
 
-export function PeerGrid({ peers, localScreen, onExpand, isAdmin }: PeerGridProps) {
-  const connected = peers.filter((peer) => peer.status === 'connected')
+/**
+ * Reads the session directly rather than taking six props. Everything it needs
+ * is already in the snapshot, and threading it through the page added nothing.
+ */
+export function PeerGrid({ onExpand }: PeerGridProps) {
+  const mesh = useMesh()
+
+  const connected = mesh.peers.filter((peer) => peer.status === 'connected')
   const watching = connected.filter((peer) => peer.attention === 'focused').length
 
-  if (peers.length === 0 && !localScreen) {
-    return (
-      <p className={styles.empty}>
-        ninguém conectado ainda — mande seu link de convite para um amigo, ou cole o ID dele acima.
-      </p>
-    )
-  }
-
   return (
-    <div className={styles.grid}>
-      {localScreen && (
-        <LocalPreview
-          stream={localScreen}
+    <>
+      <div className={styles.grid}>
+        <SelfTile
+          name={mesh.selfName}
+          micMuted={mesh.micMuted}
+          screen={mesh.localScreen}
           onExpand={onExpand}
           watching={watching}
           audience={connected.length}
         />
+        {mesh.peers.map((peer) => (
+          <PeerTile key={peer.id} peer={peer} onExpand={onExpand} isAdmin={mesh.isAdmin} />
+        ))}
+      </div>
+
+      {mesh.peers.length === 0 && (
+        <p className={styles.empty}>
+          você está sozinho aqui — mande seu link para alguém entrar no canal com você.
+        </p>
       )}
-      {peers.map((peer) => (
-        <PeerTile key={peer.id} peer={peer} onExpand={onExpand} isAdmin={isAdmin} />
-      ))}
-    </div>
+    </>
   )
 }

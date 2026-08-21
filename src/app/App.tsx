@@ -79,7 +79,9 @@ export function App() {
   }, [spotlight, spotlighted])
 
   const unread = Math.max(0, mesh.messages.length - readCount)
-  const connected = mesh.peers.filter((peer) => peer.status === 'connected').length
+  // You are one of the participants, so the headcount includes you. Otherwise
+  // a room of three reads as "2" to everyone standing in it.
+  const headcount = mesh.peers.filter((peer) => peer.status === 'connected').length + 1
 
   return (
     <div className={styles.page} ref={pageRef}>
@@ -99,14 +101,9 @@ export function App() {
         <ConnectForm disabled={!mesh.selfId} />
 
         <h2 className={styles.sectionLabel}>
-          participantes {connected > 0 && <span className={styles.count}>{connected}</span>}
+          participantes <span className={styles.count}>{headcount}</span>
         </h2>
-        <PeerGrid
-          peers={mesh.peers}
-          localScreen={mesh.localScreen}
-          onExpand={setSpotlight}
-          isAdmin={mesh.isAdmin}
-        />
+        <PeerGrid onExpand={setSpotlight} />
 
         <footer className={styles.note}>
           a conexão é ponto a ponto (WebRTC); só o endereço inicial passa por um servidor público
