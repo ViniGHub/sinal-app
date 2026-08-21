@@ -51,11 +51,48 @@
   background: var(--panel-2);
 }
 
-.currentLabel {
+.currentInfo {
+  min-width: 0;
+}
+
+.channelName {
   display: block;
+  background: transparent;
+  border: none;
+  padding: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--signal);
+}
+
+.channelName:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.channelName:disabled {
+  opacity: 1;
+  color: var(--muted);
+}
+
+.lock {
+  color: var(--faint);
+}
+
+.channelNameInput {
+  background: var(--bg);
+  border: 1px solid var(--signal-dim);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 6px;
+  width: 160px;
+  outline: none;
 }
 
 .currentHint {

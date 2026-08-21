@@ -11,6 +11,14 @@ export interface ChannelMembership {
    * point for joiners, not a relay — media never passes through it.
    */
   isAnchor: boolean
+  /** Shared across everyone in the channel. Empty until someone names it. */
+  name: string
+  /**
+   * Local timestamp after which the name may change again, or 0 when it may
+   * change now. The cooldown belongs to the channel, not to a person: once
+   * anyone renames it, it is settled for everyone.
+   */
+  cooldownUntil: number
 }
 
 export interface SessionStatus {

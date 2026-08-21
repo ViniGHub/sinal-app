@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MAX_CHANNEL_NAME_LENGTH,
   MAX_CHAT_LENGTH,
   MAX_NAME_LENGTH,
   MAX_ROSTER_SIZE,
@@ -9,6 +10,7 @@ import {
   sanitizeName,
   shortId,
   shouldInitiate,
+  supersedesChannelName,
 } from '../protocol'
 
 describe('isValidPeerId', () => {
@@ -119,6 +121,53 @@ describe('parseWireMessage', () => {
       text: 'oi',
       at: 0,
     })
+  })
+})
+
+describe('channel-name messages', () => {
+  const base = { t: 'channel-name', name: 'Sala', at: 5, from: 'sinal-aaaaaaaaaaaa' }
+
+  it('accepts a well-formed claim', () => {
+    expect(parseWireMessage(base)).toEqual(base)
+  })
+
+  it('drops a claim that cannot be ordered against the others', () => {
+    // Without both fields there is no way to settle a conflict, and guessing
+    // would let two peers keep different names forever.
+    expect(parseWireMessage({ ...base, from: undefined })).toBeNull()
+    expect(parseWireMessage({ ...base, from: '<script>' })).toBeNull()
+    expect(parseWireMessage({ ...base, name: '   ' })).toBeNull()
+  })
+
+  it('replaces a non-numeric timestamp rather than propagating NaN', () => {
+    expect(parseWireMessage({ ...base, at: 'agora' })).toEqual({ ...base, at: 0 })
+  })
+
+  it('clamps a name long enough to break the layout', () => {
+    const parsed = parseWireMessage({ ...base, name: 'z'.repeat(200) })
+    expect((parsed as { name: string }).name).toHaveLength(MAX_CHANNEL_NAME_LENGTH)
+  })
+})
+
+describe('supersedesChannelName', () => {
+  const older = { at: 10, from: 'sinal-bbbbbbbbbbbb' }
+
+  it('prefers the later claim', () => {
+    expect(supersedesChannelName({ at: 11, from: 'sinal-aaaaaaaaaaaa' }, older)).toBe(true)
+    expect(supersedesChannelName({ at: 9, from: 'sinal-zzzzzzzzzzzz' }, older)).toBe(false)
+  })
+
+  it('settles a tie by peer id, the same way on every node', () => {
+    const a = { at: 10, from: 'sinal-aaaaaaaaaaaa' }
+    const z = { at: 10, from: 'sinal-zzzzzzzzzzzz' }
+    // Exactly one direction wins, so two peers renaming in the same instant
+    // converge instead of each keeping whatever arrived last.
+    expect(supersedesChannelName(z, a)).toBe(true)
+    expect(supersedesChannelName(a, z)).toBe(false)
+  })
+
+  it('does not supersede itself, so a rebroadcast is a no-op', () => {
+    expect(supersedesChannelName(older, older)).toBe(false)
   })
 })
 

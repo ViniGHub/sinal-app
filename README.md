@@ -165,6 +165,27 @@ Um peer de quem ainda não ouvimos nada fica `unknown` e não mostra nada. Supor
 `focused` seria afirmar algo que não sabemos, exatamente no ponto em que o
 usuário confia na informação.
 
+### Nome do canal
+
+O nome pertence ao canal, não ao seu marcador: renomear muda para todos, e quem
+entra depois recebe o nome junto do handshake.
+
+Duas pessoas podem renomear no mesmo instante, e aí a rede precisa convergir
+sozinha. A regra é **último a escrever vence, com o ID do autor desempatando**
+(`supersedesChannelName`). O desempate é o que torna seguro: sem ele, cada nó
+ficaria com a mensagem que por acaso chegou por último, e a sala discordaria de
+si mesma para sempre. Comparar IDs dá a mesma resposta em todos os nós,
+independentemente da ordem de chegada.
+
+Há um **cooldown de 3 minutos** por canal — depois que alguém renomeia, o nome
+fica assentado para todo mundo, não só para quem mexeu. Como a moderação, é
+cooperativo: evita o nome piscando entre pessoas de boa-fé, não um cliente
+modificado.
+
+Dois relógios são mantidos separados de propósito: o do autor, que só serve
+para ordenar reivindicações, e o local, que mede o cooldown. Misturá-los faria
+o relógio adiantado de um participante travar o botão dos outros.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

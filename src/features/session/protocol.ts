@@ -9,6 +9,7 @@
 import type { AttentionState } from '@/features/participants/types'
 
 export const MAX_NAME_LENGTH = 24
+export const MAX_CHANNEL_NAME_LENGTH = 32
 export const MAX_CHAT_LENGTH = 800
 /** Guards against a peer flooding us with a huge roster. */
 export const MAX_ROSTER_SIZE = 64
@@ -37,6 +38,11 @@ export type WireMessage =
   | { t: 'channel'; id: string }
   /** Asks the recipient to leave the channel. Honoured only from an admin. */
   | { t: 'kick' }
+  /**
+   * The channel's shared name. Carries who set it and when, so every node can
+   * settle disagreements the same way without needing message ordering.
+   */
+  | { t: 'channel-name'; name: string; at: number; from: string }
   /** Sent by a channel anchor to whoever just knocked: who is inside. */
   | { t: 'members'; peers: string[] }
 
@@ -66,6 +72,27 @@ function cleanRoster(value: unknown): string[] {
 
 export function sanitizeName(value: unknown): string {
   return cleanText(value, MAX_NAME_LENGTH)
+}
+
+export function sanitizeChannelName(value: unknown): string {
+  return cleanText(value, MAX_CHANNEL_NAME_LENGTH)
+}
+
+/**
+ * Whether one channel-name claim supersedes another.
+ *
+ * Last-write-wins on the author's clock, with their peer id breaking ties. The
+ * tiebreak is what makes it safe: two people renaming in the same instant would
+ * otherwise leave each node holding whichever message happened to arrive last,
+ * and the room would disagree with itself forever. Comparing ids gives every
+ * node the same answer regardless of arrival order.
+ */
+export function supersedesChannelName(
+  incoming: { at: number; from: string },
+  current: { at: number; from: string },
+): boolean {
+  if (incoming.at !== current.at) return incoming.at > current.at
+  return incoming.from > current.from
 }
 
 const ATTENTION_STATES: readonly AttentionState[] = ['unknown', 'focused', 'visible', 'hidden']
@@ -116,6 +143,15 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'attention', attention: cleanAttention(msg['attention']) }
     case 'kick':
       return { t: 'kick' }
+    case 'channel-name': {
+      const name = sanitizeChannelName(msg['name'])
+      const from = msg['from']
+      // Both fields drive conflict resolution, so a claim missing either one
+      // cannot be ordered against the others and is dropped rather than guessed.
+      if (!name || !isValidPeerId(from)) return null
+      const at = typeof msg['at'] === 'number' && Number.isFinite(msg['at']) ? msg['at'] : 0
+      return { t: 'channel-name', name, at, from }
+    }
     case 'chat': {
       const text = cleanText(msg['text'], MAX_CHAT_LENGTH)
       if (!text) return null

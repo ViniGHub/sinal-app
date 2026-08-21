@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCopy } from '@/shared/hooks/useCopy'
 import { buildChannelInviteUrl } from '@/features/identity/invite'
 import { shortId } from '@/features/session/protocol'
 import { useMesh, useSession } from '@/features/session/useMesh'
+import { ChannelNameField } from './ChannelNameField'
 import { generateChannelId } from './storage'
 import { useChannels } from './useChannels'
 import { usePresence } from './usePresence'
@@ -39,6 +40,24 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+
+  // Held in a ref because both callbacks are rebuilt whenever the list
+  // changes, and depending on them would re-run this on every write.
+  const syncRef = useRef<(id: string, name: string) => void>(() => {})
+  useEffect(() => {
+    syncRef.current = (id, name) => {
+      if (isSaved(id)) rename(id, name)
+    }
+  }, [isSaved, rename])
+
+  // Keep the bookmark's label in step with the channel's shared name, so the
+  // list does not keep showing a stale label after someone renames the room.
+  const currentId = mesh.channel?.id
+  const currentName = mesh.channel?.name
+  useEffect(() => {
+    if (!currentId || !currentName) return
+    syncRef.current(currentId, currentName)
+  }, [currentId, currentName])
 
   useEffect(() => {
     if (!open) return
@@ -86,11 +105,13 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
       {current && (
         <div className={styles.current}>
-          <div>
-            <span className={styles.currentLabel}>
-              você está em {shortId(current.id)}
-              {current.isAnchor && ' · ancorando'}
-            </span>
+          <div className={styles.currentInfo}>
+            <ChannelNameField
+              name={current.name}
+              cooldownUntil={current.cooldownUntil}
+              fallback={shortId(current.id)}
+              onRename={(value) => session.renameChannel(value)}
+            />
             <span className={styles.currentHint}>
               {current.isAnchor
                 ? 'você segura este canal; se sair, outro membro assume'

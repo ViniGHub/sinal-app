@@ -25,9 +25,11 @@ import {
   MAX_CHAT_LENGTH,
   isValidPeerId,
   parseWireMessage,
+  sanitizeChannelName,
   sanitizeName,
   shortId,
   shouldInitiate,
+  supersedesChannelName,
   type WireMessage,
 } from './protocol'
 import type { MeshSnapshot, SessionStatus } from './types'
@@ -87,6 +89,9 @@ const KNOCK_TIMEOUT_MS = 5_000
 /** How long a person has to answer a personal invite with their channel. */
 const INVITE_TIMEOUT_MS = 6_000
 
+/** Minimum gap between changes to a channel's name. */
+export const RENAME_COOLDOWN_MS = 3 * 60_000
+
 /** An in-flight personal invite: we asked someone where to meet. */
 interface InviteRuntime {
   id: string
@@ -133,6 +138,17 @@ export class MeshSession {
   #sharing = false
   #attention: AttentionState = 'focused'
   #stopAttention: (() => void) | null = null
+
+  /** The channel's shared name, plus what is needed to order claims about it. */
+  #channelName = ''
+  #channelNameAt = 0
+  #channelNameFrom = ''
+  /**
+   * When *this* node last saw the name change, on its own clock. Kept apart
+   * from `#channelNameAt` on purpose: that one is the author's clock and is
+   * only fit for comparing claims, never for measuring elapsed time here.
+   */
+  #channelNameSeenAt = 0
   #status: SessionStatus = { kind: 'busy', message: 'iniciando…' }
 
   #snapshot: MeshSnapshot
@@ -506,6 +522,7 @@ export class MeshSession {
     if (this.#channel?.id === channelId) return
 
     this.leaveChannel()
+    this.#resetChannelName()
     this.#channel = {
       id: channelId,
       conn: null,
@@ -617,6 +634,69 @@ export class MeshSession {
     this.#publish()
   }
 
+  /**
+   * Renames the channel for everyone.
+   *
+   * The cooldown is per channel, not per person: once anyone renames it, the
+   * name is settled for three minutes. Enforcement is local and cooperative,
+   * like moderation — it prevents flapping among people acting in good faith,
+   * not a modified client.
+   */
+  renameChannel(rawName: string): void {
+    const channel = this.#channel
+    const selfId = this.#selfId
+    if (!channel || !selfId) return
+
+    const name = sanitizeChannelName(rawName)
+    if (!name || name === this.#channelName) return
+
+    const remaining = this.renameCooldownRemaining()
+    if (remaining > 0) {
+      const minutes = Math.ceil(remaining / 60_000)
+      this.#setStatus('error', `aguarde ${minutes} min para renomear o canal de novo.`)
+      return
+    }
+
+    const at = Date.now()
+    this.#applyChannelName(name, at, selfId, true)
+    this.#broadcast({ t: 'channel-name', name, at, from: selfId })
+  }
+
+  /** Milliseconds until the channel may be renamed again, or 0 if it may now. */
+  renameCooldownRemaining(): number {
+    if (!this.#channelNameSeenAt) return 0
+    return Math.max(0, this.#channelNameSeenAt + RENAME_COOLDOWN_MS - Date.now())
+  }
+
+  #applyChannelName(name: string, at: number, from: string, isChange: boolean): void {
+    this.#channelName = name
+    this.#channelNameAt = at
+    this.#channelNameFrom = from
+    // Learning a name we never had is not a change, so it must not start a
+    // cooldown — otherwise joining a room would lock its name for three
+    // minutes for no reason.
+    if (isChange) this.#channelNameSeenAt = Date.now()
+    this.#publish()
+  }
+
+  #resetChannelName(): void {
+    this.#channelName = ''
+    this.#channelNameAt = 0
+    this.#channelNameFrom = ''
+    this.#channelNameSeenAt = 0
+  }
+
+  /** Tells one peer the name we hold, so joiners learn it without asking. */
+  #sendChannelName(conn: DataConnection): void {
+    if (!this.#channel || !this.#channelName) return
+    this.#send(conn, {
+      t: 'channel-name',
+      name: this.#channelName,
+      at: this.#channelNameAt,
+      from: this.#channelNameFrom,
+    })
+  }
+
   /** Who to advertise to a joiner: us plus everyone we can currently see. */
   #channelRoster(): string[] {
     const ids = [...this.#records.keys()]
@@ -726,6 +806,7 @@ export class MeshSession {
         attention: this.#attention,
         peers: this.#knownIds(),
       })
+      this.#sendChannelName(conn)
       this.#maybeCallAudio(peerId)
       if (this.#sharing) this.#callScreen(peerId)
     })
@@ -760,6 +841,7 @@ export class MeshSession {
               attention: this.#attention,
               peers: this.#knownIds(),
             })
+            this.#sendChannelName(conn)
           }
         }
         return
@@ -773,6 +855,14 @@ export class MeshSession {
       case 'attention':
         this.#patch(peerId, { attention: message.attention })
         return
+      case 'channel-name': {
+        if (!this.#channel) return
+        const claim = { at: message.at, from: message.from }
+        const held = { at: this.#channelNameAt, from: this.#channelNameFrom }
+        if (!supersedesChannelName(claim, held)) return
+        this.#applyChannelName(message.name, message.at, message.from, this.#channelName !== '')
+        return
+      }
       case 'kick': {
         // Only honoured from someone announcing the admin name. That check is
         // spoofable — the name is self-declared — but it keeps the rule
@@ -998,7 +1088,14 @@ export class MeshSession {
       selfName: this.#selfName,
       status: this.#status,
       channel: this.#channel
-        ? { id: this.#channel.id, isAnchor: this.#channel.anchor !== null }
+        ? {
+            id: this.#channel.id,
+            isAnchor: this.#channel.anchor !== null,
+            name: this.#channelName,
+            cooldownUntil: this.#channelNameSeenAt
+              ? this.#channelNameSeenAt + RENAME_COOLDOWN_MS
+              : 0,
+          }
         : null,
       isAdmin: this.#isAdmin(),
       peers: [...this.#records.values()]
