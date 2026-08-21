@@ -33,6 +33,11 @@ export interface MeshSnapshot {
   status: SessionStatus
   /** Null when connected peer-to-peer without a channel. */
   channel: ChannelMembership | null
+  /**
+   * Whether our display name grants moderation. A convention among people who
+   * already trust each other, not a permission — see `moderation.ts`.
+   */
+  isAdmin: boolean
   peers: RemotePeer[]
   micMuted: boolean
   /** Whether we are currently sharing our screen. */

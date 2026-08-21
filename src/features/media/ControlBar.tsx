@@ -10,6 +10,8 @@ interface ControlBarProps {
   chatOpen: boolean
   channelsOpen: boolean
   unreadCount: number
+  /** Whether we are in a channel, and so have something to leave. */
+  inChannel: boolean
   onToggleChat: () => void
   onToggleChannels: () => void
 }
@@ -21,6 +23,7 @@ export function ControlBar({
   chatOpen,
   channelsOpen,
   unreadCount,
+  inChannel,
   onToggleChat,
   onToggleChannels,
 }: ControlBarProps) {
@@ -70,6 +73,17 @@ export function ControlBar({
       >
         Canais
       </button>
+
+      {/* Everyone can always remove themselves, whatever their name is. */}
+      {inChannel && (
+        <button
+          type="button"
+          className={`${styles.button} ${styles.leave}`}
+          onClick={() => session.leaveChannel()}
+        >
+          Sair do canal
+        </button>
+      )}
     </div>
   )
 }

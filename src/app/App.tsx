@@ -41,8 +41,9 @@ export function App() {
     invited.current = true
     clearInvite()
     if (invite.id === mesh.selfId) return
-    if (invite.kind === 'channel') session.joinChannel(invite.id)
-    else session.connectTo(invite.id)
+    // Both link kinds go through the same door; `enter` works out whether the
+    // id names a channel to join or a person to ask for one.
+    session.enter(invite.id)
   }, [mesh.selfId, session])
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export function App() {
           peers={mesh.peers}
           localScreen={mesh.localScreen}
           onExpand={setSpotlight}
+          isAdmin={mesh.isAdmin}
         />
 
         <footer className={styles.note}>
@@ -136,6 +138,7 @@ export function App() {
         chatOpen={chatOpen}
         channelsOpen={panel === 'channels'}
         unreadCount={unread}
+        inChannel={mesh.channel !== null}
         onToggleChat={toggleChat}
         onToggleChannels={toggleChannels}
       />

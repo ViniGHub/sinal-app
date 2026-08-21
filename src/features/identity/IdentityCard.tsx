@@ -44,8 +44,11 @@ export function IdentityCard({ selfId, selfName }: IdentityCardProps) {
       </label>
 
       <div className={styles.field}>
-        <span className={styles.label}>seu ID</span>
+        <span className={styles.label}>seu link pessoal</span>
         <code className={styles.id}>{selfId ?? 'gerando…'}</code>
+        {/* It never changes, so it can be shared once and reused forever —
+            each person who opens it lands in a channel with you. */}
+        <span className={styles.hint}>quem abrir entra num canal com você</span>
       </div>
 
       <button
@@ -54,7 +57,7 @@ export function IdentityCard({ selfId, selfName }: IdentityCardProps) {
         disabled={!selfId}
         onClick={() => selfId && copy(buildInviteUrl(selfId))}
       >
-        {copied ? 'link copiado' : 'copiar convite'}
+        {copied ? 'link copiado' : 'copiar link'}
       </button>
     </div>
   )

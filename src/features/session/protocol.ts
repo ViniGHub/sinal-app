@@ -30,6 +30,13 @@ export type WireMessage =
   | { t: 'screen'; sharing: boolean }
   | { t: 'attention'; attention: AttentionState }
   | { t: 'chat'; text: string; at: number }
+  /**
+   * Answer to a personal invite: the channel to meet in. The person being
+   * invited never learns a peer id from this — only where to go.
+   */
+  | { t: 'channel'; id: string }
+  /** Asks the recipient to leave the channel. Honoured only from an admin. */
+  | { t: 'kick' }
   /** Sent by a channel anchor to whoever just knocked: who is inside. */
   | { t: 'members'; peers: string[] }
 
@@ -95,6 +102,10 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       }
     case 'members':
       return { t: 'members', peers: cleanRoster(msg['peers']) }
+    case 'channel': {
+      const id = msg['id']
+      return isValidPeerId(id) ? { t: 'channel', id } : null
+    }
     case 'name':
       return { t: 'name', name: sanitizeName(msg['name']) }
     case 'mic':
@@ -103,6 +114,8 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'screen', sharing: msg['sharing'] === true }
     case 'attention':
       return { t: 'attention', attention: cleanAttention(msg['attention']) }
+    case 'kick':
+      return { t: 'kick' }
     case 'chat': {
       const text = cleanText(msg['text'], MAX_CHAT_LENGTH)
       if (!text) return null

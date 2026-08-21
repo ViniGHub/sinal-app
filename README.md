@@ -73,6 +73,24 @@ src/
 
 ### Canais
 
+**Toda conexão acontece dentro de um canal.** Não existe conversa fora de um.
+Há duas portas, e elas convergem:
+
+| você abre | acontece |
+|---|---|
+| link de canal (`#channel=`) | entra nele; se estiver vazio, você o cria ao entrar |
+| link pessoal (`#join=`) | pergunta à pessoa em que canal ela está — se ela não estiver em nenhum, ela cria um na hora |
+
+`MeshSession.enter` é a única porta de entrada e decide qual caminho seguir a
+partir do próprio ID. Por isso o prefixo `sinal-c-` é **funcional**, não
+decorativo: entrar num canal vazio significa registrar o ID dele, e registrar o
+ID de uma *pessoa* colidiria com o registro dela e forçaria a identidade dela a
+rotacionar. Os dois tipos precisam ser distinguidos antes de qualquer
+reivindicação.
+
+O link pessoal nunca muda, então pode ser divulgado uma vez e reutilizado para
+sempre — cada pessoa que o abrir cai num canal com você.
+
 Um canal tem identidade própria: ele não é uma pessoa, e sobrevive à saída de
 quem o criou.
 
@@ -100,6 +118,24 @@ sobrevive.
 [`ChannelAnchor`](src/features/channels/ChannelAnchor.ts) segura o segundo
 `Peer`; [`MeshSession.joinChannel`](src/features/session/MeshSession.ts)
 coordena bater na porta, discar os membros e reassumir a âncora.
+
+### Moderação
+
+Quem se chama **PohWay** vê um botão "remover do canal" em cada participante;
+os demais só têm "sair do canal", para si mesmos.
+
+**Isto é uma convenção, não controle de acesso.** Nomes de exibição são
+autodeclarados e trafegam pelo data channel sem verificação, então qualquer
+pessoa pode digitar esse nome e ganhar o botão — e um cliente modificado pode
+simplesmente ignorar o pedido de saída. Serve para tornar visível uma regra
+entre pessoas que já confiam umas nas outras; não detém ninguém que não confie.
+
+Controle real exigiria algo que um participante não possa simplesmente
+declarar. O caminho mais simples aqui seria um segredo de administração fora do
+link do canal: o convite carrega o canal, e um segundo segredo — combinado por
+outro meio — acompanha as ações de moderação, que os demais só honram se o
+segredo bater. Continua sendo confiança no cliente, mas deixa de bastar digitar
+um nome.
 
 ### Atenção dos participantes
 

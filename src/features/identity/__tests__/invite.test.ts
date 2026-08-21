@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildChannelInviteUrl, buildInviteUrl, readInvite } from '../invite'
+import { buildChannelInviteUrl, buildInviteUrl, extractInviteId, readInvite } from '../invite'
 
 const ID = 'sinal-abc23xyz9k7m'
 const CHANNEL = 'sinal-c-abc23xyz9k'
@@ -24,6 +24,26 @@ describe('buildChannelInviteUrl', () => {
     expect(buildChannelInviteUrl(CHANNEL, 'https://exemplo.dev/')).toBe(
       `https://exemplo.dev/#channel=${CHANNEL}`,
     )
+  })
+})
+
+describe('extractInviteId', () => {
+  it('accepts a full link of either kind', () => {
+    expect(extractInviteId(`https://exemplo.dev/#join=${ID}`)).toBe(ID)
+    expect(extractInviteId(`https://exemplo.dev/#channel=${CHANNEL}`)).toBe(CHANNEL)
+  })
+
+  it('accepts a bare id, which is what people usually paste', () => {
+    expect(extractInviteId(`  ${CHANNEL}  `)).toBe(CHANNEL)
+    expect(extractInviteId(ID)).toBe(ID)
+  })
+
+  it('returns null for text that carries no usable id', () => {
+    expect(extractInviteId('')).toBeNull()
+    expect(extractInviteId('   ')).toBeNull()
+    expect(extractInviteId('https://exemplo.dev/')).toBeNull()
+    expect(extractInviteId('https://exemplo.dev/#join=<script>')).toBeNull()
+    expect(extractInviteId('bom dia')).toBeNull()
   })
 })
 

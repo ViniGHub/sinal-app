@@ -2,6 +2,7 @@ import { Peer } from 'peerjs'
 import type { DataConnection, MediaConnection } from 'peerjs'
 
 import { ChannelAnchor } from '@/features/channels/ChannelAnchor'
+import { generateChannelId, isChannelId } from '@/features/channels/storage'
 import type { ChatMessage } from '@/features/chat/types'
 import {
   loadDisplayName,
@@ -18,6 +19,7 @@ import {
 } from '@/features/media/capture'
 import type { AttentionState, RemotePeer } from '@/features/participants/types'
 import { readAttention, watchAttention } from './attention'
+import { isAdminName } from './moderation'
 import { buildPeerConfig } from './ice'
 import {
   MAX_CHAT_LENGTH,
@@ -82,6 +84,16 @@ interface ChannelRuntime {
 /** How long an answering id has to identify itself as a channel. */
 const KNOCK_TIMEOUT_MS = 5_000
 
+/** How long a person has to answer a personal invite with their channel. */
+const INVITE_TIMEOUT_MS = 6_000
+
+/** An in-flight personal invite: we asked someone where to meet. */
+interface InviteRuntime {
+  id: string
+  conn: DataConnection | null
+  timer: ReturnType<typeof setTimeout> | null
+}
+
 /** An in-flight presence check. Deliberately never becomes a participant. */
 interface Probe {
   promise: Promise<boolean>
@@ -111,6 +123,7 @@ export class MeshSession {
   #records = new Map<string, PeerRecord>()
   #probes = new Map<string, Probe>()
   #channel: ChannelRuntime | null = null
+  #invite: InviteRuntime | null = null
   #messages: ChatMessage[] = []
   #listeners = new Set<() => void>()
 
@@ -175,6 +188,7 @@ export class MeshSession {
 
     this.#stopAttention?.()
     this.#stopAttention = null
+    this.#clearInvite()
 
     for (const record of this.#records.values()) this.#teardownRecord(record)
     this.#records.clear()
@@ -251,6 +265,14 @@ export class MeshSession {
           this.#settleProbe(target, false)
           return
         }
+        // The person behind a personal link is not online. Nothing to create
+        // here: claiming their id as a channel would collide with their own
+        // registration the moment they came back.
+        if (target && this.#invite?.id === target) {
+          this.#clearInvite()
+          this.#setStatus('error', 'essa pessoa não está online agora.')
+          return
+        }
         // Nobody holds the channel id: the channel is empty, so we take it and
         // become the room that later joiners will find. This is also how a
         // brand new channel comes into existence — there is no create step.
@@ -275,7 +297,80 @@ export class MeshSession {
 
   // ------------------------------------------------------------- commands
 
-  /** Dials a peer by id. Ignores self-dials, malformed ids and duplicates. */
+  /**
+   * The single way in. Every route ends with both people in a channel.
+   *
+   * A channel id is entered directly — taken over if empty, joined if live. A
+   * person's id goes through them instead: they answer with the channel they
+   * are in, minting one first if they have none. So "invite a friend" and
+   * "open a channel link" converge, and there is no such thing as a connection
+   * that exists outside a channel.
+   */
+  enter(rawId: string): void {
+    const id = rawId.trim()
+    if (!this.#peer || this.#destroyed) return
+    if (!isValidPeerId(id)) {
+      this.#setStatus('error', 'esse link não parece válido.')
+      return
+    }
+    if (id === this.#selfId) {
+      this.#setStatus('error', 'esse é o seu próprio link.')
+      return
+    }
+
+    if (isChannelId(id)) this.joinChannel(id)
+    else this.#inviteVia(id)
+  }
+
+  /**
+   * Reaches a channel through a person.
+   *
+   * Their id is never claimed as a channel — doing so would collide with their
+   * own registration and force their identity to rotate. We only ask.
+   */
+  #inviteVia(personId: string): void {
+    if (!this.#peer) return
+    this.#setStatus('busy', `procurando ${shortId(personId)}…`)
+
+    const conn = this.#peer.connect(personId, { reliable: true, metadata: { invite: true } })
+    this.#invite = { id: personId, conn, timer: null }
+
+    const invite = this.#invite
+    invite.timer = setTimeout(() => {
+      if (this.#invite !== invite) return
+      this.#clearInvite()
+      this.#setStatus('error', 'essa pessoa não respondeu ao convite.')
+    }, INVITE_TIMEOUT_MS)
+
+    conn.on('data', (raw) => {
+      const message = parseWireMessage(raw)
+      if (message?.t !== 'channel' || this.#invite !== invite) return
+      this.#clearInvite()
+      this.joinChannel(message.id)
+    })
+  }
+
+  #clearInvite(): void {
+    const invite = this.#invite
+    if (!invite) return
+    this.#invite = null
+    if (invite.timer) clearTimeout(invite.timer)
+    invite.conn?.close()
+  }
+
+  /**
+   * The channel we are in, creating one if we are not in any yet. This is what
+   * makes a personal link able to conjure a room out of nothing.
+   */
+  #ensureChannel(): string | null {
+    if (this.#channel) return this.#channel.id
+    if (!this.#peer || this.#destroyed) return null
+    const id = generateChannelId()
+    this.joinChannel(id)
+    return id
+  }
+
+  /** Dials a peer by id. Internal to the mesh: users always go through `enter`. */
   connectTo(rawId: string): void {
     const peerId = rawId.trim()
     if (!this.#peer || this.#destroyed) return
@@ -301,6 +396,24 @@ export class MeshSession {
 
   disconnect(peerId: string): void {
     this.#dropPeer(peerId)
+  }
+
+  /**
+   * Removes someone from the channel.
+   *
+   * Enforced by convention only: we ask them to leave and stop talking to them.
+   * A participant running a modified client can ignore the request, and anyone
+   * can adopt the admin name to send one. See `moderation.ts`.
+   */
+  kick(peerId: string): void {
+    if (!this.#isAdmin()) return
+    const conn = this.#records.get(peerId)?.conn
+    if (conn) this.#send(conn, { t: 'kick' })
+    this.#dropPeer(peerId)
+  }
+
+  #isAdmin(): boolean {
+    return isAdminName(this.#selfName)
   }
 
   setMicMuted(muted: boolean): void {
@@ -568,10 +681,25 @@ export class MeshSession {
       return
     }
 
+    const metadata = conn.metadata as { probe?: boolean; invite?: boolean } | undefined
+
     // Someone checking whether we are online. The connection opening is itself
     // the whole answer, and they close it immediately — turning it into a
     // participant would put a phantom tile on screen for everyone in the room.
-    if ((conn.metadata as { probe?: boolean } | undefined)?.probe === true) return
+    if (metadata?.probe === true) return
+
+    // Someone opened our personal link. Answer with where to meet, creating a
+    // channel if we are not in one — this is the moment a personal invite turns
+    // into a room. They join it and we meet there as ordinary members, so this
+    // connection never becomes a participant either.
+    if (metadata?.invite === true) {
+      conn.on('open', () => {
+        const channelId = this.#ensureChannel()
+        if (!channelId) return
+        this.#send(conn, { t: 'channel', id: channelId })
+      })
+      return
+    }
 
     const record = this.#ensureRecord(peerId)
 
@@ -642,6 +770,17 @@ export class MeshSession {
       case 'attention':
         this.#patch(peerId, { attention: message.attention })
         return
+      case 'kick': {
+        // Only honoured from someone announcing the admin name. That check is
+        // spoofable — the name is self-declared — but it keeps the rule
+        // consistent rather than letting any peer eject anyone.
+        const sender = this.#records.get(peerId)?.view.name ?? ''
+        if (!isAdminName(sender)) return
+        if (this.#channel) this.leaveChannel()
+        else this.#dropPeer(peerId)
+        this.#setStatus('error', 'você foi removido do canal.')
+        return
+      }
       case 'screen':
         // The stream itself arrives on the media call; this only handles the
         // stop signal, which is more reliable than waiting for a track to end.
@@ -858,6 +997,7 @@ export class MeshSession {
       channel: this.#channel
         ? { id: this.#channel.id, isAnchor: this.#channel.anchor !== null }
         : null,
+      isAdmin: this.#isAdmin(),
       peers: [...this.#records.values()]
         .map((record) => record.view)
         .sort((a, b) => a.id.localeCompare(b.id)),

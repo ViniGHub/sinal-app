@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isValidPeerId } from '@/features/session/protocol'
 
-import { MAX_CHANNELS, generateChannelId, loadChannels, saveChannels } from '../storage'
+import {
+  MAX_CHANNELS,
+  generateChannelId,
+  isChannelId,
+  loadChannels,
+  saveChannels,
+} from '../storage'
 import type { SavedChannel } from '../types'
 
 const KEY = 'sinal.channels'
@@ -91,6 +97,20 @@ describe('channel storage', () => {
   it('collapses duplicates of the same host', () => {
     store.setItem(KEY, JSON.stringify([channel(A, 'Primeiro'), channel(A, 'Segundo')]))
     expect(loadChannels()).toEqual([channel(A, 'Primeiro')])
+  })
+
+  it('tells channel ids apart from personal ids', () => {
+    // Load-bearing: entering an empty channel claims its id, and claiming a
+    // person's id would collide with their own registration and force their
+    // identity to rotate.
+    expect(isChannelId('sinal-c-abc23xyz9k')).toBe(true)
+    expect(isChannelId('sinal-abc23xyz9k7m')).toBe(false)
+    expect(isChannelId('qualquer-coisa')).toBe(false)
+  })
+
+  it('mints ids that its own check recognises as channels', () => {
+    vi.stubGlobal('crypto', { getRandomValues: (a: Uint8Array) => a.fill(7) })
+    expect(isChannelId(generateChannelId())).toBe(true)
   })
 
   it('mints channel ids the broker will accept', () => {

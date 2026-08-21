@@ -51,6 +51,24 @@ export function readInvite(hash = window.location.hash): Invite | null {
 }
 
 /**
+ * Pulls an id out of whatever the user pasted: a full invite URL of either
+ * kind, or a bare id. The kind is not decided here — `MeshSession.enter`
+ * derives it from the id itself, so both paths end in a channel regardless.
+ */
+export function extractInviteId(text: string): string | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  const hashAt = trimmed.indexOf('#')
+  if (hashAt !== -1) {
+    const invite = readInvite(trimmed.slice(hashAt))
+    return invite?.id ?? null
+  }
+
+  return isValidPeerId(trimmed) ? trimmed : null
+}
+
+/**
  * Removes the invite from the address bar once it has been used, so a reload
  * does not redial and the id is not left sitting in the user's history.
  */

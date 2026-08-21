@@ -11,18 +11,27 @@ export const MAX_CHANNELS = 50
 const ALPHABET = '23456789abcdefghijkmnpqrstuvwxyz'
 const CHANNEL_ID_LENGTH = 10
 
+const CHANNEL_PREFIX = 'sinal-c-'
+
 /**
- * Mints a channel id.
+ * Whether an id names a channel rather than a person.
  *
- * The 'c-' marker is only a hint for humans reading a link; nothing depends on
- * it, because a channel is defined by someone holding the id, not by its shape.
+ * This distinction is load-bearing, not cosmetic. Entering an empty channel
+ * means claiming its id, and claiming a *person's* id would collide with their
+ * own registration and force their identity to rotate. So the two kinds of id
+ * must be told apart before anything is claimed.
  */
+export function isChannelId(id: string): boolean {
+  return id.startsWith(CHANNEL_PREFIX)
+}
+
+/** Mints a channel id, carrying the marker `isChannelId` looks for. */
 export function generateChannelId(): string {
   const bytes = new Uint8Array(CHANNEL_ID_LENGTH)
   crypto.getRandomValues(bytes)
   let id = ''
   for (const byte of bytes) id += ALPHABET[byte % ALPHABET.length]
-  return `sinal-c-${id}`
+  return `${CHANNEL_PREFIX}${id}`
 }
 
 function parseChannel(raw: unknown): SavedChannel | null {

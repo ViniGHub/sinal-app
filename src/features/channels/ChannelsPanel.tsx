@@ -31,7 +31,7 @@ function timeAgo(at: number | null): string {
 export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const session = useSession()
   const mesh = useMesh()
-  const { channels, save, remove, rename, markSeen } = useChannels()
+  const { channels, save, remove, rename, markSeen, isSaved } = useChannels()
   const [copied, copy] = useCopy()
 
   const ids = useMemo(() => channels.map((channel) => channel.id), [channels])
@@ -60,10 +60,10 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
     session.joinChannel(id)
   }
 
-  const enter = (channel: SavedChannel) => {
-    if (channel.kind === 'channel') session.joinChannel(channel.id)
-    else session.connectTo(channel.id)
-  }
+  // Both kinds go through the same door. A bookmark saved before channels
+  // existed points at a person, and entering it now means joining whatever
+  // channel that person is in — so old bookmarks gain the new behaviour.
+  const enter = (channel: SavedChannel) => session.enter(channel.id)
 
   const commitRename = (id: string) => {
     rename(id, draft)
@@ -105,11 +105,16 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
             >
               {copied ? 'copiado' : 'convite'}
             </button>
-            <button
-              type="button"
-              className={styles.ghost}
-              onClick={() => session.leaveChannel()}
-            >
+            {!isSaved(current.id) && (
+              <button
+                type="button"
+                className={styles.ghost}
+                onClick={() => save(current.id, 'Canal salvo', 'channel')}
+              >
+                salvar
+              </button>
+            )}
+            <button type="button" className={styles.ghost} onClick={() => session.leaveChannel()}>
               sair
             </button>
           </div>
@@ -123,8 +128,7 @@ export function ChannelsPanel({ open, onClose }: { open: boolean; onClose: () =>
       <div className={styles.list}>
         {channels.length === 0 ? (
           <p className={styles.hint}>
-            nenhum canal salvo — crie um acima, ou salve alguém com quem você já esteja
-            conversando.
+            nenhum canal salvo — crie um acima, ou salve o canal em que você estiver.
           </p>
         ) : (
           channels.map((channel) => {

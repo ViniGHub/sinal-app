@@ -36,7 +36,8 @@ describe('parseWireMessage', () => {
   })
 
   it('ignores message types it does not know', () => {
-    expect(parseWireMessage({ t: 'kick', target: 'someone' })).toBeNull()
+    expect(parseWireMessage({ t: 'ban', target: 'someone' })).toBeNull()
+    expect(parseWireMessage({ t: 'reboot' })).toBeNull()
   })
 
   it('coerces missing hello fields instead of trusting them', () => {
@@ -75,6 +76,17 @@ describe('parseWireMessage', () => {
   it('treats non-boolean mute flags as unmuted', () => {
     expect(parseWireMessage({ t: 'mic', micMuted: 'yes' })).toEqual({ t: 'mic', micMuted: false })
     expect(parseWireMessage({ t: 'mic', micMuted: true })).toEqual({ t: 'mic', micMuted: true })
+  })
+
+  it('refuses a channel answer that is not a usable id', () => {
+    // This id gets joined, and joining an empty channel claims it. A malformed
+    // value must never reach that path.
+    expect(parseWireMessage({ t: 'channel', id: 'sinal-c-abc23xyz9k' })).toEqual({
+      t: 'channel',
+      id: 'sinal-c-abc23xyz9k',
+    })
+    expect(parseWireMessage({ t: 'channel', id: '<script>' })).toBeNull()
+    expect(parseWireMessage({ t: 'channel' })).toBeNull()
   })
 
   it('accepts the attention states it knows', () => {

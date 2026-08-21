@@ -1,4 +1,3 @@
-import { useChannels } from '@/features/channels/useChannels'
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
@@ -32,15 +31,14 @@ const ATTENTION_TITLE: Record<AttentionState, string> = {
 interface PeerTileProps {
   peer: RemotePeer
   onExpand: (target: string) => void
+  /** Whether the local user may remove people from the channel. */
+  isAdmin: boolean
 }
 
-export function PeerTile({ peer, onExpand }: PeerTileProps) {
+export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
   const session = useSession()
-  const { isSaved, save } = useChannels()
   const videoRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
-
-  const saved = isSaved(peer.id)
 
   return (
     <article className={styles.tile}>
@@ -87,27 +85,20 @@ export function PeerTile({ peer, onExpand }: PeerTileProps) {
         </div>
       </div>
 
-      <div className={styles.rowActions}>
-        <button
-          type="button"
-          className={styles.disconnect}
-          onClick={() => session.disconnect(peer.id)}
-        >
-          desconectar
-        </button>
-
-        {/* Saving is only offered from a live connection: a bookmark you never
-            reached is a bookmark that will not work. */}
-        <button
-          type="button"
-          className={`${styles.save} ${saved ? styles.saved : ''}`}
-          disabled={saved}
-          onClick={() => save(peer.id, peer.name, 'peer')}
-          title={saved ? 'já está nos seus canais' : 'salvar nos seus canais'}
-        >
-          {saved ? '★ salvo' : '☆ salvar'}
-        </button>
-      </div>
+      {/* Removing someone is an admin action; everyone else leaves via the
+          control bar. No "save" here either: bookmarks point at channels now,
+          so saving lives with the channel in the side panel. */}
+      {isAdmin && (
+        <div className={styles.rowActions}>
+          <button
+            type="button"
+            className={styles.disconnect}
+            onClick={() => session.kick(peer.id)}
+          >
+            remover do canal
+          </button>
+        </div>
+      )}
     </article>
   )
 }

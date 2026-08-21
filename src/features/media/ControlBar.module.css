@@ -34,6 +34,11 @@
 .muted { border-color: var(--danger); color: var(--danger); }
 .sharing { border-color: var(--warn); color: var(--warn); }
 
+.leave:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .badge {
   min-width: 18px;
   height: 18px;

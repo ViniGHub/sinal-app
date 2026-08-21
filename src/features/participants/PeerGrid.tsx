@@ -8,9 +8,10 @@ interface PeerGridProps {
   localScreen: MediaStream | null
   /** Receives a peer id, or 'self' for our own capture. */
   onExpand: (target: string) => void
+  isAdmin: boolean
 }
 
-export function PeerGrid({ peers, localScreen, onExpand }: PeerGridProps) {
+export function PeerGrid({ peers, localScreen, onExpand, isAdmin }: PeerGridProps) {
   const connected = peers.filter((peer) => peer.status === 'connected')
   const watching = connected.filter((peer) => peer.attention === 'focused').length
 
@@ -33,7 +34,7 @@ export function PeerGrid({ peers, localScreen, onExpand }: PeerGridProps) {
         />
       )}
       {peers.map((peer) => (
-        <PeerTile key={peer.id} peer={peer} onExpand={onExpand} />
+        <PeerTile key={peer.id} peer={peer} onExpand={onExpand} isAdmin={isAdmin} />
       ))}
     </div>
   )
