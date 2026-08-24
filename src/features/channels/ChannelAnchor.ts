@@ -2,6 +2,8 @@ import { Peer } from 'peerjs'
 
 import type { Occupant } from '@/features/participants/types'
 import { buildPeerConfig } from '@/features/session/ice'
+import { shortId } from '@/features/session/protocol'
+import { diagnostics } from '@/shared/diagnostics'
 
 /** What happened when we tried to take the channel id. */
 export type AnchorOutcome =
@@ -68,6 +70,7 @@ export class ChannelAnchor {
       peer.on('connection', (conn) => {
         conn.on('open', () => {
           try {
+            diagnostics.info('âncora', `alguém bateu na porta de ${shortId(this.channelId)}`)
             void conn.send({ t: 'members', occupants: this.roster() })
           } catch {
             // The joiner vanished mid-handshake; they will retry.

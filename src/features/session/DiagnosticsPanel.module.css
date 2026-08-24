@@ -1,0 +1,118 @@
+.panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: var(--control-bar-height);
+  width: min(420px, 100vw);
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 var(--space-1);
+}
+
+.close:hover { color: var(--text); }
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hint {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 0;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 46px 68px 1fr;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(35, 42, 51, 0.5);
+}
+
+.at {
+  color: var(--faint);
+  text-align: right;
+}
+
+.area {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.info .message { color: var(--text); }
+.warn .message { color: var(--warn); }
+.error .message { color: var(--danger); }
+
+.note {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .panel { width: 100vw; }
+}

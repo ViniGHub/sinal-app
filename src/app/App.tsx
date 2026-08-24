@@ -10,6 +10,7 @@ import { SpotlightView } from '@/features/participants/SpotlightView'
 import type { SpotlightTarget } from '@/features/participants/types'
 import { useFullscreen } from '@/shared/hooks/useFullscreen'
 import { ConnectForm } from '@/features/session/ConnectForm'
+import { DiagnosticsPanel } from '@/features/session/DiagnosticsPanel'
 import { StatusLine } from '@/features/session/StatusLine'
 import { useMesh, useSession } from '@/features/session/useMesh'
 import styles from './App.module.css'
@@ -20,7 +21,7 @@ export function App() {
 
   // One slot rather than a boolean per panel: they occupy the same edge of the
   // screen, so opening one has to close the other.
-  const [panel, setPanel] = useState<'chat' | 'channels' | null>(null)
+  const [panel, setPanel] = useState<'chat' | 'channels' | 'diagnostics' | null>(null)
   const [readCount, setReadCount] = useState(0)
   // Which participant's video fills the page, and which of their sources.
   const [spotlight, setSpotlight] = useState<SpotlightTarget | null>(null)
@@ -139,6 +140,14 @@ export function App() {
         <footer className={styles.note}>
           a conexão é ponto a ponto (WebRTC); só o endereço inicial passa por um servidor público
           de sinalização.
+          {' · '}
+          <button
+            type="button"
+            className={styles.link}
+            onClick={() => setPanel((current) => (current === 'diagnostics' ? null : 'diagnostics'))}
+          >
+            diagnóstico
+          </button>
         </footer>
       </div>
 
@@ -160,6 +169,7 @@ export function App() {
 
       <ChatPanel messages={mesh.messages} open={chatOpen} onClose={closePanel} />
       <ChannelsPanel open={panel === 'channels'} onClose={closePanel} />
+      <DiagnosticsPanel open={panel === 'diagnostics'} onClose={closePanel} />
 
       <ControlBar
         micStream={mesh.localMic}

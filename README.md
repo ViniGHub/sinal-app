@@ -268,6 +268,20 @@ Só há sondagem com o painel aberto. Uma lista de favoritos não deve gerar
 tráfego em segundo plano, e quem já está conectado é dado como ativo sem gastar
 ida e volta.
 
+### Diagnóstico
+
+Num app ponto a ponto a falha costuma estar na máquina de outra pessoa, num
+navegador que você não consegue abrir. `shared/diagnostics.ts` mantém um buffer
+em anel do que a camada de conexão fez, e o link **diagnóstico** no rodapé abre
+o registro em ordem, com um botão de copiar.
+
+Esse botão é o motivo da coisa toda: transforma "não aparece ninguém" numa
+transcrição que alguém consegue ler sem ter o navegador com defeito à mão.
+
+Os IDs aparecem abreviados (`shortId`). Isso mantém os eventos correlacionáveis
+sem que o log entregue o acesso a um canal — o ID do canal é, na prática, a
+única credencial que existe.
+
 ### Convenção de imports
 
 Dentro de uma feature, caminho relativo (`./protocol`). Entre features, o alias

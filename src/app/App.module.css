@@ -84,3 +84,16 @@
   font-family: var(--font-mono);
   line-height: 1.6;
 }
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.link:hover {
+  color: var(--signal);
+}

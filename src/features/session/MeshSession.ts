@@ -25,6 +25,7 @@ import {
   savePreferredMic,
 } from '@/features/media/devices'
 import type { AttentionState, Occupant, RemotePeer } from '@/features/participants/types'
+import { diagnostics } from '@/shared/diagnostics'
 import { readAttention, watchAttention } from './attention'
 import { isAdminName } from './moderation'
 import { buildPeerConfig } from './ice'
@@ -207,9 +208,11 @@ export class MeshSession {
     try {
       this.#mic = await acquireMicrophone(this.#micDeviceId)
       this.#applyMicMute()
+      diagnostics.info('mídia', 'microfone capturado')
     } catch (error) {
       // A missing microphone is not fatal: join as a listener. Silence is sent
       // in place of a real track so outgoing calls can still be established.
+      diagnostics.warn('mídia', 'sem microfone; entrando como ouvinte')
       this.#micMuted = true
       this.#setStatus(
         'error',
@@ -274,14 +277,18 @@ export class MeshSession {
     const peer = new Peer(id, { debug: 0, ...(config ? { config } : {}) })
     this.#peer = peer
 
+    diagnostics.info('peer', `registrando id ${shortId(id)}`)
+
     peer.on('open', (assignedId) => {
       this.#selfId = assignedId
+      diagnostics.info('peer', `registrado como ${shortId(assignedId)}`)
       this.#setStatus('ok', 'pronto — compartilhe seu link para alguém entrar.')
     })
     peer.on('connection', (conn) => this.#adoptConnection(conn))
     peer.on('call', (call) => this.#answerCall(call))
     peer.on('disconnected', () => {
       if (this.#destroyed) return
+      diagnostics.warn('peer', 'sinalização caiu; reconectando')
       this.#setStatus('error', 'sinalização caiu — reconectando…')
       peer.reconnect()
     })
@@ -290,6 +297,8 @@ export class MeshSession {
 
   #handlePeerError(error: PeerJsError): void {
     if (this.#destroyed) return
+
+    diagnostics.warn('peer', `erro do broker: ${error.type ?? 'desconhecido'}`)
 
     switch (error.type) {
       case 'unavailable-id': {
@@ -366,8 +375,13 @@ export class MeshSession {
       return
     }
 
-    if (isChannelId(id)) this.joinChannel(id)
-    else this.#inviteVia(id)
+    if (isChannelId(id)) {
+      diagnostics.info('entrada', `${shortId(id)} é um canal; entrando direto`)
+      this.joinChannel(id)
+    } else {
+      diagnostics.info('entrada', `${shortId(id)} é uma pessoa; pedindo o canal dela`)
+      this.#inviteVia(id)
+    }
   }
 
   /**
@@ -386,6 +400,7 @@ export class MeshSession {
     const invite = this.#invite
     invite.timer = setTimeout(() => {
       if (this.#invite !== invite) return
+      diagnostics.error('convite', `${shortId(personId)} não respondeu em ${INVITE_TIMEOUT_MS}ms`)
       this.#clearInvite()
       this.#setStatus('error', 'essa pessoa não respondeu ao convite.')
     }, INVITE_TIMEOUT_MS)
@@ -393,6 +408,7 @@ export class MeshSession {
     conn.on('data', (raw) => {
       const message = parseWireMessage(raw)
       if (message?.t !== 'channel' || this.#invite !== invite) return
+      diagnostics.info('convite', `${shortId(personId)} indicou o canal ${shortId(message.id)}`)
       this.#clearInvite()
       this.joinChannel(message.id)
     })
@@ -585,6 +601,7 @@ export class MeshSession {
     for (const record of this.#records.values()) {
       this.#replaceTrack(record.audioCall, 'audio', track)
     }
+    diagnostics.info('mídia', `microfone trocado em ${this.#records.size} chamada(s)`)
 
     // Released only after the swap, so the old device stays live until the new
     // one is actually carrying the call.
@@ -624,6 +641,7 @@ export class MeshSession {
     for (const record of this.#records.values()) {
       this.#replaceTrack(record.cameraOut, 'video', track)
     }
+    diagnostics.info('mídia', `câmera trocada em ${this.#records.size} chamada(s)`)
 
     stopStream(previous)
     this.#publish()
@@ -753,6 +771,7 @@ export class MeshSession {
     channel.knockTimer = setTimeout(() => {
       channel.knockTimer = null
       if (this.#channel !== channel || channel.anchor) return
+      diagnostics.warn('canal', `âncora de ${shortId(channel.id)} não respondeu; disputando`)
       this.#scheduleReclaim()
     }, KNOCK_TIMEOUT_MS)
 
@@ -764,6 +783,7 @@ export class MeshSession {
         clearTimeout(channel.knockTimer)
         channel.knockTimer = null
       }
+      diagnostics.info('canal', `âncora listou ${message.occupants.length} ocupante(s)`)
       // Only the joiner knows the full list, so the joiner dials everyone.
       // Applying the usual initiator rule here would leave us waiting on peers
       // that have no idea we exist yet.
@@ -789,6 +809,7 @@ export class MeshSession {
     if (!channel || channel.anchor || channel.reclaimTimer || this.#destroyed) return
 
     const delay = RECLAIM_BASE_MS + Math.random() * RECLAIM_JITTER_MS
+    diagnostics.info('canal', `disputando ${shortId(channel.id)} em ${Math.round(delay)}ms`)
     channel.reclaimTimer = setTimeout(() => {
       channel.reclaimTimer = null
       void this.#claimAnchor()
@@ -810,6 +831,7 @@ export class MeshSession {
     }
 
     if (outcome === 'anchored') {
+      diagnostics.info('canal', `${shortId(channel.id)} estava vago; você é a âncora`)
       this.#setStatus('ok', `no canal ${shortId(channel.id)} — você está ancorando.`)
       this.#publish()
       return
@@ -818,8 +840,10 @@ export class MeshSession {
     channel.anchor = null
     if (outcome === 'taken') {
       // The channel is live and someone else holds it. Ask them who is inside.
+      diagnostics.info('canal', `${shortId(channel.id)} já tem âncora; batendo na porta`)
       this.#knockAnchor()
     } else {
+      diagnostics.error('canal', `broker recusou ${shortId(channel.id)}`)
       this.#setStatus('error', 'não foi possível entrar no canal.')
     }
     this.#publish()
@@ -969,6 +993,11 @@ export class MeshSession {
     clearTimeout(probe.timer)
     if (probe.graceTimer) clearTimeout(probe.graceTimer)
     probe.conn?.close()
+    diagnostics.info(
+      'sondagem',
+      `${shortId(peerId)}: ${result.online ? 'ativo' : 'sem resposta'}` +
+        (result.occupants.length ? ` (${result.occupants.length} dentro)` : ''),
+    )
     probe.settle(result)
   }
 
@@ -1032,6 +1061,7 @@ export class MeshSession {
     this.#clearDialTimer(record)
 
     conn.on('open', () => {
+      diagnostics.info('peer', `canal de dados aberto com ${shortId(peerId)}`)
       this.#patch(peerId, { status: 'connected' })
       this.#setStatus('ok', 'conectado.')
       this.#send(conn, {
@@ -1272,6 +1302,7 @@ export class MeshSession {
   #dropPeer(peerId: string): void {
     const record = this.#records.get(peerId)
     if (!record) return
+    diagnostics.info('peer', `${shortId(peerId)} saiu`)
     this.#teardownRecord(record)
     this.#records.delete(peerId)
     this.#publish()
