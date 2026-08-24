@@ -398,3 +398,10 @@ trocando a chamada a `buildPeerConfig` por um fetch antes de criar o `Peer`.
   quem compartilha a tela vira o gargalo. Grupos maiores pedem um SFU.
 - **Broker público.** O servidor de sinalização gratuito do PeerJS não tem SLA.
 - **Áudio da aba** só é capturado no Chromium, e apenas ao compartilhar uma aba.
+
+## Licença
+
+[MIT](LICENSE) — © 2026 Vinicius Rodrigues da Silva.
+
+Use, modifique, forke e distribua à vontade, inclusive comercialmente; basta
+manter o aviso de copyright. O software é fornecido sem garantia.

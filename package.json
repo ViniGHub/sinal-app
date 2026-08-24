@@ -4,6 +4,16 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Voz e tela ponto a ponto entre amigos, sem servidor no meio.",
+  "license": "MIT",
+  "author": "Vinicius Rodrigues da Silva",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ViniGHub/sinal-app.git"
+  },
+  "homepage": "https://vinighub.github.io/sinal-app/",
+  "bugs": {
+    "url": "https://github.com/ViniGHub/sinal-app/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
