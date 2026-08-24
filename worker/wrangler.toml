@@ -12,3 +12,8 @@ ALLOWED_ORIGINS = "https://vinighub.github.io,http://localhost:5173"
 #
 #   npx wrangler secret put TURN_KEY_ID
 #   npx wrangler secret put TURN_KEY_API_TOKEN
+#
+# The argument is the secret's NAME, always literal — those two names are what
+# index.js reads off `env`. The value belongs in the prompt that follows.
+# Passing the value as the argument creates a secret *named* after your token,
+# in the clear and visible in the dashboard forever.

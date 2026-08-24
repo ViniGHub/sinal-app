@@ -367,14 +367,22 @@ navegador ──► seu Worker ──► API da Cloudflare ──► iceServers 
 **1. Criar a chave** em *Cloudflare Dashboard → Realtime → TURN*. Guarde o
 `TURN_KEY_ID` e o token.
 
-**2. Publicar o Worker:**
+**2. Publicar o Worker.** Registre um subdomínio `workers.dev` quando o
+`wrangler` perguntar — sem ele o Worker sobe mas fica sem URL, e é a URL que o
+app precisa.
 
 ```bash
 cd worker
-npx wrangler secret put TURN_KEY_ID
-npx wrangler secret put TURN_KEY_API_TOKEN
+npx wrangler login
+npx wrangler secret put TURN_KEY_ID          # cola o uid quando perguntar
+npx wrangler secret put TURN_KEY_API_TOKEN   # cola o token quando perguntar
 npx wrangler deploy
 ```
+
+> O argumento é o **nome** do segredo, sempre literal — `TURN_KEY_ID` e
+> `TURN_KEY_API_TOKEN` são o que o Worker procura em `env`. O valor vai só no
+> prompt. Passar o valor no comando cria um segredo *chamado* com o seu token,
+> em texto puro e visível no painel; conferir com `npx wrangler secret list`.
 
 Ajuste `ALLOWED_ORIGINS` no [`wrangler.toml`](worker/wrangler.toml) para os
 domínios que podem pedir credenciais.
