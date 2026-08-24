@@ -1,7 +1,7 @@
 import { Peer } from 'peerjs'
 
 import type { Occupant } from '@/features/participants/types'
-import { buildPeerConfig } from '@/features/session/ice'
+
 import { shortId } from '@/features/session/protocol'
 import { diagnostics } from '@/shared/diagnostics'
 
@@ -39,6 +39,9 @@ export class ChannelAnchor {
     readonly channelId: string,
     /** Who to advertise to joiners: us plus everyone we can currently see. */
     private readonly roster: () => Occupant[],
+    /** Resolved once by the session, so the anchor reaches the network the
+     *  same way its owner does — and no extra credentials are minted. */
+    private readonly config: RTCConfiguration | undefined,
   ) {}
 
   claim(): Promise<AnchorOutcome> {
@@ -55,7 +58,7 @@ export class ChannelAnchor {
         resolve(outcome)
       }
 
-      const config = buildPeerConfig(import.meta.env)
+      const config = this.config
       const peer = new Peer(this.channelId, { debug: 0, ...(config ? { config } : {}) })
       this.#peer = peer
 

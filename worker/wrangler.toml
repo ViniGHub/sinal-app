@@ -1,0 +1,14 @@
+name = "sinal-turn"
+main = "index.js"
+compatibility_date = "2026-01-01"
+
+# Origins allowed to ask for credentials. Not authentication — see the comment
+# in index.js — but it keeps the endpoint from being an open faucet.
+[vars]
+ALLOWED_ORIGINS = "https://vinighub.github.io,http://localhost:5173"
+
+# TURN_KEY_ID and TURN_KEY_API_TOKEN are NOT set here: they are secrets, and
+# this file is committed. Set them once with:
+#
+#   npx wrangler secret put TURN_KEY_ID
+#   npx wrangler secret put TURN_KEY_API_TOKEN

@@ -14,13 +14,20 @@
  * entries below have to be restated rather than assumed.
  */
 
+import { diagnostics } from '@/shared/diagnostics'
+
 export interface IceEnv {
+  /** Endpoint that mints short-lived credentials. Preferred over the fields below. */
+  readonly VITE_TURN_ENDPOINT?: string | undefined
   readonly VITE_STUN_URLS?: string | undefined
   readonly VITE_TURN_URLS?: string | undefined
   readonly VITE_TURN_USERNAME?: string | undefined
   readonly VITE_TURN_CREDENTIAL?: string | undefined
   readonly VITE_ICE_FORCE_RELAY?: string | undefined
 }
+
+/** Long enough to fail fast; the app still works without TURN, just less often. */
+const ENDPOINT_TIMEOUT_MS = 5_000
 
 const DEFAULT_STUN = [
   'stun:stun.l.google.com:19302',
@@ -87,4 +94,74 @@ export function buildPeerConfig(env: IceEnv): RTCConfiguration | undefined {
 /** True when a usable TURN server was configured, for surfacing in the UI. */
 export function hasTurn(env: IceEnv): boolean {
   return buildIceServers(env).some((server) => 'username' in server)
+}
+
+/**
+ * Turns whatever the credential endpoint answered into ICE servers.
+ *
+ * Validated rather than trusted: it is our own worker, but a misconfigured
+ * deploy or a proxy in the way can return anything, and a malformed entry makes
+ * the browser fail every connection attempt against it.
+ */
+export function parseIceServers(payload: unknown): RTCIceServer[] {
+  if (typeof payload !== 'object' || payload === null) return []
+  const list = (payload as { iceServers?: unknown }).iceServers
+  if (!Array.isArray(list)) return []
+
+  const servers: RTCIceServer[] = []
+  for (const entry of list) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const record = entry as Record<string, unknown>
+
+    const urls =
+      typeof record['urls'] === 'string'
+        ? [record['urls']]
+        : Array.isArray(record['urls'])
+          ? record['urls'].filter((url): url is string => typeof url === 'string')
+          : []
+    if (urls.length === 0) continue
+
+    const username = record['username']
+    const credential = record['credential']
+    // A TURN entry missing its credentials is worse than no entry: the browser
+    // still tries it, fails to authenticate, and slows every connection down.
+    if (typeof username === 'string' && typeof credential === 'string') {
+      servers.push({ urls, username, credential })
+    } else {
+      servers.push({ urls })
+    }
+  }
+  return servers
+}
+
+/**
+ * The config to hand PeerJS, resolved once at startup.
+ *
+ * Prefers the credential endpoint, because credentials that expire are the only
+ * kind safe to put in a browser. Falls back to the build-time fields, and then
+ * to PeerJS's own defaults — the call is worth attempting without TURN, so a
+ * fetch failure must never be fatal.
+ */
+export async function resolveIceConfig(env: IceEnv): Promise<RTCConfiguration | undefined> {
+  const endpoint = env.VITE_TURN_ENDPOINT?.trim()
+  if (!endpoint) return buildPeerConfig(env)
+
+  try {
+    const response = await fetch(endpoint, {
+      signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`status ${response.status}`)
+
+    const servers = parseIceServers(await response.json())
+    if (servers.length === 0) throw new Error('resposta sem servidores')
+
+    diagnostics.info('ice', `${servers.length} servidor(es) recebidos do endpoint`)
+    const config: RTCConfiguration = { iceServers: servers }
+    if (env.VITE_ICE_FORCE_RELAY === 'true') config.iceTransportPolicy = 'relay'
+    return config
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'desconhecido'
+    diagnostics.warn('ice', `endpoint de TURN falhou (${reason}); usando o padrão`)
+    return buildPeerConfig(env)
+  }
 }

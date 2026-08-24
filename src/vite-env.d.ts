@@ -10,6 +10,13 @@ declare global {
    * sit inside `declare global` rather than at module scope.
    */
   interface ImportMetaEnv {
+    /**
+     * Endpoint that mints short-lived TURN credentials (the Cloudflare Worker
+     * in `worker/`). Preferred over the static fields below, because only
+     * credentials that expire are safe to hand to a browser. Just a URL, so it
+     * is fine that this one is public.
+     */
+    readonly VITE_TURN_ENDPOINT?: string
     /** STUN servers, comma-separated. Defaults to Google's public ones. */
     readonly VITE_STUN_URLS?: string
     /** TURN servers, comma-separated. Ignored unless both fields below are set. */

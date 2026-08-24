@@ -32,4 +32,15 @@ export default tseslint.config(
     files: ['eslint.config.js'],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  {
+    // The Cloudflare Worker is deployed on its own and runs on workerd, not in
+    // the browser bundle, so it sits outside the app's TypeScript program.
+    files: ['worker/**/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.worker, fetch: 'readonly', Response: 'readonly' },
+    },
+  },
 )

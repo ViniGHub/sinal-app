@@ -28,7 +28,7 @@ import type { AttentionState, Occupant, RemotePeer } from '@/features/participan
 import { diagnostics } from '@/shared/diagnostics'
 import { readAttention, watchAttention } from './attention'
 import { isAdminName } from './moderation'
-import { buildPeerConfig } from './ice'
+import { resolveIceConfig } from './ice'
 import {
   MAX_CHAT_LENGTH,
   isValidPeerId,
@@ -165,6 +165,9 @@ export class MeshSession {
   #attention: AttentionState = 'focused'
   #stopAttention: (() => void) | null = null
 
+  /** How this session reaches the network. Resolved once, in `start`. */
+  #iceConfig: RTCConfiguration | undefined
+
   /** Remembered device choices, applied whenever a capture is (re)started. */
   #micDeviceId: string | null = loadPreferredMic()
   #cameraDeviceId: string | null = loadPreferredCamera()
@@ -220,6 +223,11 @@ export class MeshSession {
       )
     }
 
+    // Resolved once and reused for every Peer we create, including channel
+    // anchors: minting credentials per connection would be wasteful, and the
+    // whole session should agree on how it reaches the network.
+    this.#iceConfig = await resolveIceConfig(import.meta.env)
+
     this.#attention = readAttention()
     this.#stopAttention = watchAttention((state) => {
       this.#attention = state
@@ -273,7 +281,7 @@ export class MeshSession {
     // Omitted entirely when nothing is configured: passing `config` would
     // replace PeerJS's defaults, which include a free TURN relay, rather than
     // extend them.
-    const config = buildPeerConfig(import.meta.env)
+    const config = this.#iceConfig
     const peer = new Peer(id, { debug: 0, ...(config ? { config } : {}) })
     this.#peer = peer
 
@@ -820,7 +828,7 @@ export class MeshSession {
     const channel = this.#channel
     if (!channel || channel.anchor) return
 
-    const anchor = new ChannelAnchor(channel.id, () => this.#channelOccupants())
+    const anchor = new ChannelAnchor(channel.id, () => this.#channelOccupants(), this.#iceConfig)
     channel.anchor = anchor
     const outcome = await anchor.claim()
 

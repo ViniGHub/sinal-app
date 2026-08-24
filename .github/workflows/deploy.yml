@@ -58,9 +58,13 @@ jobs:
         env:
           # Project pages live at /<repo>/, so the bundle needs a matching base.
           VITE_BASE: ${{ steps.pages.outputs.base_path }}/
-          # Optional TURN relay. Using secrets keeps the credentials out of the
-          # repository — it does NOT keep them out of the shipped bundle, which
-          # anyone can read. See "Credenciais efêmeras" in the README.
+          # Endpoint that mints short-lived TURN credentials. A plain URL, so a
+          # repository variable is the right home for it — the secret it guards
+          # never leaves the Worker.
+          VITE_TURN_ENDPOINT: ${{ vars.TURN_ENDPOINT }}
+          # Legacy fallback for a self-hosted TURN with fixed credentials. Using
+          # secrets keeps these out of the repository — it does NOT keep them out
+          # of the shipped bundle, which anyone can read.
           VITE_TURN_URLS: ${{ vars.TURN_URLS }}
           VITE_TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
           VITE_TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}

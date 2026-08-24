@@ -354,7 +354,47 @@ Quando não existe caminho direto (NAT simétrico, firewall corporativo, algumas
 operadoras móveis), é preciso um **TURN**, que retransmite a mídia. Isso custa
 banda de verdade: cada byte da chamada passa pelo seu servidor.
 
-Configure copiando `.env.example` para `.env.local`:
+### Configurando (Cloudflare Realtime)
+
+O caminho recomendado usa credenciais **temporárias**, emitidas sob demanda pelo
+Worker em [`worker/`](worker/). Nenhum segredo entra no bundle.
+
+```
+navegador ──► seu Worker ──► API da Cloudflare ──► iceServers com TTL
+              (guarda a chave)
+```
+
+**1. Criar a chave** em *Cloudflare Dashboard → Realtime → TURN*. Guarde o
+`TURN_KEY_ID` e o token.
+
+**2. Publicar o Worker:**
+
+```bash
+cd worker
+npx wrangler secret put TURN_KEY_ID
+npx wrangler secret put TURN_KEY_API_TOKEN
+npx wrangler deploy
+```
+
+Ajuste `ALLOWED_ORIGINS` no [`wrangler.toml`](worker/wrangler.toml) para os
+domínios que podem pedir credenciais.
+
+**3. Apontar o app** para a URL que o `deploy` imprimiu:
+
+```bash
+VITE_TURN_ENDPOINT=https://sinal-turn.SEU-SUBDOMINIO.workers.dev
+```
+
+Em produção, defina `TURN_ENDPOINT` em *Settings → Variables* — é só uma URL, não
+um segredo. O workflow já a injeta no build.
+
+Se o endpoint falhar ou demorar, o app **não quebra**: cai para os padrões do
+PeerJS e a chamada segue sem TURN próprio, o que basta para a maioria das redes.
+O evento aparece no painel de diagnóstico.
+
+### Alternativa: TURN com credencial fixa
+
+Ainda suportado, para um coturn próprio:
 
 ```bash
 VITE_TURN_URLS=turn:turn.exemplo.dev:3478,turns:turn.exemplo.dev:5349
@@ -362,12 +402,12 @@ VITE_TURN_USERNAME=usuario
 VITE_TURN_CREDENTIAL=senha
 ```
 
-Os três precisam estar preenchidos — [`lib/ice.ts`](src/lib/ice.ts) ignora um
-TURN pela metade de propósito, porque uma entrada que não autentica é pior que
-nenhuma: o navegador tenta, falha e atrasa toda conexão.
+Os três precisam estar preenchidos — [`ice.ts`](src/features/session/ice.ts)
+ignora um TURN pela metade de propósito, porque uma entrada que não autentica é
+pior que nenhuma: o navegador tenta, falha e atrasa toda conexão.
 
-Em produção, defina `TURN_URLS` em *Settings → Variables* e `TURN_USERNAME` /
-`TURN_CREDENTIAL` em *Settings → Secrets*; o workflow já os injeta no build.
+Lembre que estes vão **para dentro do bundle** e são públicos. É exatamente por
+isso que o endpoint é o caminho recomendado.
 
 ### Conferindo se o TURN funciona
 
@@ -379,17 +419,21 @@ Isso proíbe caminhos diretos. Se a chamada conectar assim, o relay está certo;
 se não conectar, o problema está no TURN e não na rede de quem testou. **Nunca
 publique com essa variável ligada** — força 100% do tráfego pelo relay.
 
-### Credenciais efêmeras
+### Por que credenciais efêmeras
 
-Tudo com prefixo `VITE_` é embutido no bundle. Uma senha fixa de TURN ali é
-pública: qualquer pessoa abre o DevTools, copia e usa sua banda.
+Tudo com prefixo `VITE_` é embutido no bundle. Uma senha fixa de TURN ali é uma
+senha pública: qualquer pessoa abre o DevTools, copia e gasta sua cota.
 
-Para uso além de amigos, o TURN deve emitir credenciais temporárias. O coturn
-suporta isso com `use-auth-secret`: um endpoint seu devolve
-`username = <expiração>:<usuário>` e `credential = HMAC-SHA1(secret, username)`
-em base64, válidos por algumas horas. Aí o segredo fica no servidor, e o
-front-end busca as credenciais em runtime em vez de recebê-las no build —
-trocando a chamada a `buildPeerConfig` por um fetch antes de criar o `Peer`.
+É por isso que o Worker existe. A chave fica nele, o navegador só recebe
+credenciais com prazo, e a `MeshSession` resolve isso **uma vez** no `start()` —
+reusando a mesma configuração para toda conexão, inclusive as âncoras de canal,
+em vez de emitir credenciais a cada uma.
+
+Rodando um coturn próprio, o mesmo padrão existe via `use-auth-secret`: um
+endpoint seu devolve `username = <expiração>:<usuário>` e
+`credential = HMAC-SHA1(secret, username)` em base64. Basta apontar
+`VITE_TURN_ENDPOINT` para ele, desde que responda no mesmo formato
+(`{ iceServers: [...] }`).
 
 ## Limites conhecidos
 

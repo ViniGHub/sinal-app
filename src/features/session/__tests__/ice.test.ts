@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildIceServers, buildPeerConfig, hasCustomIceConfig, hasTurn } from '../ice'
+import {
+  buildIceServers,
+  buildPeerConfig,
+  hasCustomIceConfig,
+  hasTurn,
+  parseIceServers,
+} from '../ice'
 
 const TURN = {
   VITE_TURN_URLS: 'turn:turn.exemplo.dev:3478',
@@ -82,6 +88,48 @@ describe('hasCustomIceConfig', () => {
     expect(hasCustomIceConfig({})).toBe(false)
     expect(hasCustomIceConfig({ VITE_TURN_URLS: 'turn:x.dev:3478' })).toBe(false) // sem credenciais
     expect(hasCustomIceConfig(TURN)).toBe(true)
+  })
+})
+
+describe('parseIceServers', () => {
+  it('reads the shape the credential endpoint returns', () => {
+    expect(
+      parseIceServers({
+        iceServers: [
+          { urls: ['stun:stun.cloudflare.com:3478'] },
+          {
+            urls: ['turns:turn.cloudflare.com:443?transport=tcp'],
+            username: 'abc',
+            credential: 'def',
+          },
+        ],
+      }),
+    ).toEqual([
+      { urls: ['stun:stun.cloudflare.com:3478'] },
+      { urls: ['turns:turn.cloudflare.com:443?transport=tcp'], username: 'abc', credential: 'def' },
+    ])
+  })
+
+  it('accepts a single url given as a string', () => {
+    expect(parseIceServers({ iceServers: [{ urls: 'stun:stun.exemplo.dev:3478' }] })).toEqual([
+      { urls: ['stun:stun.exemplo.dev:3478'] },
+    ])
+  })
+
+  it('drops a half-credentialled entry down to a bare url', () => {
+    // Keeping username without credential would make the browser attempt it,
+    // fail to authenticate, and slow every connection down.
+    expect(parseIceServers({ iceServers: [{ urls: ['turn:x.dev:3478'], username: 'só-isso' }] }))
+      .toEqual([{ urls: ['turn:x.dev:3478'] }])
+  })
+
+  it('returns nothing for a response that is not one', () => {
+    // A proxy or a misconfigured deploy can answer anything at all.
+    expect(parseIceServers(null)).toEqual([])
+    expect(parseIceServers('erro')).toEqual([])
+    expect(parseIceServers({})).toEqual([])
+    expect(parseIceServers({ iceServers: 'nope' })).toEqual([])
+    expect(parseIceServers({ iceServers: [null, 42, { urls: [] }, {}] })).toEqual([])
   })
 })
 
