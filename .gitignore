@@ -14,3 +14,8 @@ dist/
 .dev.vars
 .dev.vars.*
 .wrangler/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

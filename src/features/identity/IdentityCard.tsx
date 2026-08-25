@@ -45,7 +45,11 @@ export function IdentityCard({ selfId, selfName }: IdentityCardProps) {
 
       <div className={styles.field}>
         <span className={styles.label}>seu link pessoal</span>
-        <code className={styles.id}>{selfId ?? 'gerando…'}</code>
+        {/* Marked for the end-to-end tests, which need one peer's id to build
+            the invite the other one opens. */}
+        <code className={styles.id} data-testid="self-id">
+          {selfId ?? 'gerando…'}
+        </code>
         {/* It never changes, so it can be shared once and reused forever —
             each person who opens it lands in a channel with you. */}
         <span className={styles.hint}>quem abrir entra num canal com você</span>

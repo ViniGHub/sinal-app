@@ -19,7 +19,13 @@ Outros comandos:
 | `npm run preview` | Serve o `dist/` para conferir o build |
 | `npm run typecheck` | TypeScript em modo estrito, sem emitir |
 | `npm run lint` | ESLint com regras type-aware |
-| `npm test` | Vitest |
+| `npm test` | Vitest — lógica isolada |
+| `npm run test:e2e` | Playwright — dois navegadores se encontrando de verdade |
+| `npm run test:e2e:ui` | o mesmo, com a interface do Playwright para depurar |
+
+> Os testes de ponta a ponta exigem **Node 20+** (o Playwright não roda em
+> versões anteriores) e o Chromium baixado uma vez com
+> `npx playwright install chromium`.
 
 > WebRTC exige um contexto seguro. `localhost` conta como seguro; para testar de
 > outro aparelho na rede, use HTTPS ou um túnel.
@@ -330,6 +336,26 @@ de derrubar um cliente antigo quando o protocolo crescer).
 
 O React escapa texto por padrão, o que fecha a injeção de HTML que existia quando
 o ID do peer era concatenado em `innerHTML`.
+
+## Testes
+
+Duas camadas, com alcances diferentes:
+
+**Vitest** cobre lógica isolada — protocolo, armazenamento, resolução de nome
+de canal, configuração de ICE. Roda em milissegundos e prova que cada peça está
+certa.
+
+**Playwright** ([`e2e/`](e2e/)) abre **dois navegadores independentes** e faz
+um encontrar o outro. Cada participante ganha seu próprio contexto, com
+`localStorage` separado — duas abas compartilhariam identidade e não provariam
+nada. Câmera e microfone são sintéticos, via flags do Chromium, então roda numa
+máquina sem hardware nenhum.
+
+Essa segunda camada existe por um motivo específico: **todo bug que chegou à
+produção era de integração.** A âncora que nunca era reivindicada e a
+configuração que apagava os padrões do PeerJS estavam corretas em cada função
+isolada; o que estava errado era como elas se encontravam. Nenhum teste de
+função pura consegue ver isso.
 
 ## Deploy
 

@@ -133,7 +133,10 @@ export function App() {
         <ConnectForm disabled={!mesh.selfId} />
 
         <h2 className={styles.sectionLabel}>
-          participantes <span className={styles.count}>{headcount}</span>
+          participantes{' '}
+          <span className={styles.count} data-testid="headcount">
+            {headcount}
+          </span>
         </h2>
         <PeerGrid onExpand={setSpotlight} />
 
