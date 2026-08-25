@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@/features/chat/types'
+import type { ScreenQualityId } from '@/features/media/quality'
 import type { RemotePeer } from '@/features/participants/types'
 
 export type StatusKind = 'idle' | 'busy' | 'ok' | 'error'
@@ -59,5 +60,7 @@ export interface MeshSnapshot {
   /** Chosen capture devices, or null while the browser default is in use. */
   micDeviceId: string | null
   cameraDeviceId: string | null
+  /** Which screen-sharing preset is in effect. */
+  screenQuality: ScreenQualityId
   messages: ChatMessage[]
 }

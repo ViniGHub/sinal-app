@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 
-import type { DeviceOption } from './devices'
-import styles from './DeviceMenu.module.css'
+import styles from './OptionMenu.module.css'
 
-interface DeviceMenuProps {
-  devices: DeviceOption[]
-  /** Currently chosen device, or null while the browser default is in use. */
+export interface MenuOption {
+  id: string
+  label: string
+}
+
+interface OptionMenuProps {
+  options: MenuOption[]
+  /** Currently chosen option, or null while a default is in effect. */
   selected: string | null
   label: string
-  onSelect: (deviceId: string) => void
+  onSelect: (id: string) => void
 }
 
 /**
- * The caret next to a capture button, listing the hardware to switch to.
+ * The caret next to a capture button, listing what it can be switched to.
  *
  * Hidden entirely when there is nothing to choose between: a menu offering a
  * single option is noise, and one offering none is a dead end.
  */
-export function DeviceMenu({ devices, selected, label, onSelect }: DeviceMenuProps) {
+export function OptionMenu({ options, selected, label, onSelect }: OptionMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -39,7 +43,7 @@ export function DeviceMenu({ devices, selected, label, onSelect }: DeviceMenuPro
     }
   }, [open])
 
-  if (devices.length < 2) return null
+  if (options.length < 2) return null
 
   return (
     <div className={styles.root} ref={rootRef}>
@@ -56,25 +60,25 @@ export function DeviceMenu({ devices, selected, label, onSelect }: DeviceMenuPro
 
       {open && (
         <ul className={styles.menu} role="menu">
-          {devices.map((device) => {
-            // With no explicit choice the browser picked for us, and it always
-            // picks the first entry — so that is what gets the check.
-            const active = selected ? device.id === selected : device === devices[0]
+          {options.map((option) => {
+            // With no explicit choice something else picked for us, and it
+            // always picks the first entry — so that is what gets the mark.
+            const active = selected ? option.id === selected : option === options[0]
             return (
-              <li key={device.id}>
+              <li key={option.id}>
                 <button
                   type="button"
                   role="menuitem"
                   className={`${styles.item} ${active ? styles.active : ''}`}
                   onClick={() => {
-                    onSelect(device.id)
+                    onSelect(option.id)
                     setOpen(false)
                   }}
                 >
                   <span className={styles.check} aria-hidden="true">
                     {active ? '●' : ''}
                   </span>
-                  {device.label}
+                  {option.label}
                 </button>
               </li>
             )

@@ -248,6 +248,34 @@ correspondente foi concedida, então a lista de câmeras aparece genérica
 ("Câmera 1", "Câmera 2") até a câmera ser ligada uma vez. As listas são
 relidas em `devicechange` e a cada vez que uma captura começa ou para.
 
+### Qualidade do compartilhamento
+
+Compartilhar tela troca duas coisas entre si, e qual delas importa depende do
+que está na tela. Ler código quer pixels nítidos e quase nenhum quadro por
+segundo — texto não se mexe. Assistir a um vídeo quer o oposto, e prefere perder
+detalhe a engasgar. Por isso são **presets de intenção**, não um punhado de
+números:
+
+| preset | fps | teto | dica ao codificador |
+|---|---|---|---|
+| Econômica | 8 | 600 kbps | `text`, metade da resolução |
+| Nítida | 8 | 1,5 Mbps | `text` |
+| Equilibrada | 15 | 2,5 Mbps | `detail` |
+| Fluida | 30 | 4 Mbps | `motion` |
+
+A troca vale **durante** o compartilhamento, sem renegociar: o quadro por
+segundo é reaplicado à captura com `applyConstraints`, e o teto de banda a cada
+remetente com `setParameters`. Rechamar os peers para mudar um bitrate
+interromperia o que os outros estão assistindo.
+
+A captura permanece na resolução nativa em todos os presets menos o econômico —
+reduzir na origem jogaria fora detalhe que o codificador ainda poderia
+aproveitar. Quem entra depois recebe o teto poucos instantes após a chamada
+negociar, porque o remetente ainda não existe no momento da ligação.
+
+O `contentHint` é uma **dica**, não uma restrição: navegadores que não a
+implementam ignoram a propriedade.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

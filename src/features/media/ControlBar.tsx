@@ -1,5 +1,6 @@
 import { useSession } from '@/features/session/useMesh'
-import { DeviceMenu } from './DeviceMenu'
+import { OptionMenu } from './OptionMenu'
+import { SCREEN_QUALITIES, type ScreenQualityId } from './quality'
 import { MicMeter } from './MicMeter'
 import { useMediaDevices } from './useMediaDevices'
 import { useMicLevel } from './useMicLevel'
@@ -13,6 +14,8 @@ interface ControlBarProps {
   /** Chosen capture devices, or null while the browser default is in use. */
   micDeviceId: string | null
   cameraDeviceId: string | null
+  /** Which screen-sharing preset is in effect. */
+  screenQuality: ScreenQualityId
   chatOpen: boolean
   channelsOpen: boolean
   unreadCount: number
@@ -29,6 +32,7 @@ export function ControlBar({
   cameraOn,
   micDeviceId,
   cameraDeviceId,
+  screenQuality,
   chatOpen,
   channelsOpen,
   unreadCount,
@@ -59,8 +63,8 @@ export function ControlBar({
           <MicMeter level={level} muted={micMuted} />
         </button>
 
-        <DeviceMenu
-          devices={devices.microphones}
+        <OptionMenu
+          options={devices.microphones}
           selected={micDeviceId}
           label="Escolher microfone"
           onSelect={(id) => void session.switchMicrophone(id)}
@@ -77,22 +81,33 @@ export function ControlBar({
           {cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
         </button>
 
-        <DeviceMenu
-          devices={devices.cameras}
+        <OptionMenu
+          options={devices.cameras}
           selected={cameraDeviceId}
           label="Escolher câmera"
           onSelect={(id) => void session.switchCamera(id)}
         />
       </div>
 
-      <button
-        type="button"
-        className={`${styles.button} ${sharing ? styles.sharing : ''}`}
-        onClick={() => session.toggleSharing()}
-        aria-pressed={sharing}
-      >
-        {sharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
-      </button>
+      <div className={styles.group}>
+        <button
+          type="button"
+          className={`${styles.button} ${sharing ? styles.sharing : ''}`}
+          onClick={() => session.toggleSharing()}
+          aria-pressed={sharing}
+        >
+          {sharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
+        </button>
+
+        {/* Offered even while not sharing: the choice is remembered and
+            applies to the next screen, so it can be set in advance. */}
+        <OptionMenu
+          options={SCREEN_QUALITIES.map(({ id, label }) => ({ id, label }))}
+          selected={screenQuality}
+          label="Qualidade do compartilhamento"
+          onSelect={(id) => void session.setScreenQuality(id as ScreenQualityId)}
+        />
+      </div>
 
       <button
         type="button"

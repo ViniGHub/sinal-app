@@ -15,6 +15,7 @@ import {
   acquireCamera,
   acquireMicrophone,
   acquireScreen,
+  applyContentHint,
   createSilentAudioStream,
   stopStream,
 } from '@/features/media/capture'
@@ -24,6 +25,13 @@ import {
   savePreferredCamera,
   savePreferredMic,
 } from '@/features/media/devices'
+import {
+  findScreenQuality,
+  loadScreenQuality,
+  saveScreenQuality,
+  type ScreenQuality,
+  type ScreenQualityId,
+} from '@/features/media/quality'
 import type { AttentionState, Occupant, RemotePeer } from '@/features/participants/types'
 import { diagnostics } from '@/shared/diagnostics'
 import { readAttention, watchAttention } from './attention'
@@ -102,6 +110,9 @@ const INVITE_TIMEOUT_MS = 6_000
 /** Minimum gap between changes to a channel's name. */
 export const RENAME_COOLDOWN_MS = 3 * 60_000
 
+/** A media call needs a moment before its sender exists to be configured. */
+const ENCODING_SETTLE_MS = 800
+
 /** How long to hold a one-shot removal notice open so the message flushes. */
 const KICK_FLUSH_MS = 1_000
 
@@ -169,6 +180,7 @@ export class MeshSession {
   #iceConfig: RTCConfiguration | undefined
 
   /** Remembered device choices, applied whenever a capture is (re)started. */
+  #screenQuality: ScreenQualityId = loadScreenQuality()
   #micDeviceId: string | null = loadPreferredMic()
   #cameraDeviceId: string | null = loadPreferredCamera()
 
@@ -537,7 +549,7 @@ export class MeshSession {
 
     let stream: MediaStream
     try {
-      stream = await acquireScreen()
+      stream = await acquireScreen(findScreenQuality(this.#screenQuality))
     } catch (error) {
       if (error instanceof MediaError && !error.cancelled) this.#setStatus('error', error.message)
       return
@@ -661,6 +673,60 @@ export class MeshSession {
     // Fails when the connection is already closing; the peer will get the new
     // track from a fresh call if they reconnect, so there is nothing to do.
     void sender?.replaceTrack(track).catch(() => {})
+  }
+
+  /**
+   * Changes how the screen is encoded, taking effect immediately when already
+   * sharing and remembered for next time when not.
+   *
+   * Nothing is renegotiated: the frame rate is re-applied to the capture and
+   * the ceiling to each sender, both in place. Re-calling every peer to change
+   * a bitrate would interrupt what the viewers are watching.
+   */
+  async setScreenQuality(id: ScreenQualityId): Promise<void> {
+    const quality = findScreenQuality(id)
+    this.#screenQuality = quality.id
+    saveScreenQuality(quality.id)
+    this.#publish()
+
+    const stream = this.#screen
+    if (!stream) return
+
+    applyContentHint(stream, quality)
+    const track = stream.getVideoTracks()[0]
+    // Best-effort: a source may refuse a frame rate it cannot produce, and
+    // that is not a reason to abandon the rest of the change.
+    if (track) await track.applyConstraints({ frameRate: { ideal: quality.frameRate } }).catch(() => {})
+
+    for (const record of this.#records.values()) {
+      this.#applyScreenEncoding(record.screenOut, quality)
+    }
+    diagnostics.info('mídia', `qualidade da tela: ${quality.id}`)
+  }
+
+  #applyScreenEncoding(call: MediaConnection | null, quality: ScreenQuality): void {
+    const sender = call?.peerConnection
+      ?.getSenders()
+      .find((candidate) => candidate.track?.kind === 'video')
+    if (!sender) return
+
+    try {
+      const parameters = sender.getParameters()
+      // Chrome hands back an empty list before the first negotiation settles;
+      // assigning one entry is how the spec says to start from nothing.
+      if (!parameters.encodings || parameters.encodings.length === 0) {
+        parameters.encodings = [{}]
+      }
+      for (const encoding of parameters.encodings) {
+        encoding.maxBitrate = quality.maxBitrate
+        encoding.maxFramerate = quality.frameRate
+        encoding.scaleResolutionDownBy = quality.scaleDownBy
+      }
+      void sender.setParameters(parameters).catch(() => {})
+    } catch {
+      // Older engines reject parameters they do not model; the call keeps
+      // running at whatever the browser chose on its own.
+    }
   }
 
   async startCamera(): Promise<void> {
@@ -1237,6 +1303,13 @@ export class MeshSession {
     if (!this.#peer || !this.#screen || !record) return
     record.screenOut?.close()
     record.screenOut = this.#peer.call(peerId, this.#screen, { metadata: { kind: 'screen' } })
+
+    // The sender only exists once the call has negotiated, so the ceiling is
+    // applied on the next tick rather than now. A late joiner must not get an
+    // uncapped stream just because they arrived after the setting was chosen.
+    const quality = findScreenQuality(this.#screenQuality)
+    const call = record.screenOut
+    setTimeout(() => this.#applyScreenEncoding(call, quality), ENCODING_SETTLE_MS)
   }
 
   #callCamera(peerId: string): void {
@@ -1399,6 +1472,7 @@ export class MeshSession {
         .sort((a, b) => a.id.localeCompare(b.id)),
       micMuted: this.#micMuted,
       sharing: this.#sharing,
+      screenQuality: this.#screenQuality,
       localScreen: this.#screen,
       localCamera: this.#camera,
       localMic: this.#mic,

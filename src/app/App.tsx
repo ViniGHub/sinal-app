@@ -181,6 +181,7 @@ export function App() {
         cameraOn={mesh.localCamera !== null}
         micDeviceId={mesh.micDeviceId}
         cameraDeviceId={mesh.cameraDeviceId}
+        screenQuality={mesh.screenQuality}
         chatOpen={chatOpen}
         channelsOpen={panel === 'channels'}
         unreadCount={unread}

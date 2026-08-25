@@ -4,6 +4,8 @@
  * makes it testable.
  */
 
+import type { ScreenQuality } from './quality'
+
 export class MediaError extends Error {
   constructor(
     message: string,
@@ -81,16 +83,35 @@ export async function acquireCamera(deviceId: string | null = null): Promise<Med
   }
 }
 
-export async function acquireScreen(): Promise<MediaStream> {
+export async function acquireScreen(quality: ScreenQuality): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
     throw new MediaError('Este navegador não permite compartilhar a tela.', false)
   }
   try {
-    // Audio is best-effort: only Chromium shares tab audio, others ignore it.
-    return await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Capture stays at native resolution whatever the preset: downscaling
+      // here would throw away detail the encoder could still have used. Only
+      // the frame rate is worth constraining at the source.
+      video: { frameRate: { ideal: quality.frameRate } },
+      // Audio is best-effort: only Chromium shares tab audio, others ignore it.
+      audio: true,
+    })
+    applyContentHint(stream, quality)
+    return stream
   } catch (error) {
     throw new MediaError('Compartilhamento cancelado.', isCancellation(error))
   }
+}
+
+/**
+ * Tells the encoder what to protect when it has to choose.
+ *
+ * A hint, not a constraint: browsers that do not implement it ignore the
+ * property, which is why it is assigned rather than negotiated.
+ */
+export function applyContentHint(stream: MediaStream, quality: ScreenQuality): void {
+  const track = stream.getVideoTracks()[0]
+  if (track) track.contentHint = quality.contentHint
 }
 
 /**
