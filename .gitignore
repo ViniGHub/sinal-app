@@ -8,3 +8,9 @@ dist/
 .env
 .env.local
 .env.*.local
+
+# Where `wrangler dev` reads secrets from, in the clear. Never commit it —
+# the real values live in Cloudflare, set with `wrangler secret put`.
+.dev.vars
+.dev.vars.*
+.wrangler/
