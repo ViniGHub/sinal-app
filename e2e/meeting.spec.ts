@@ -103,6 +103,51 @@ test.describe('encontro entre dois participantes', () => {
     await bob.context().close()
   })
 
+  test('quando a âncora sai, quem fica continua se falando', async ({ browser, baseURL }) => {
+    const alice = await openParticipant(browser)
+    const bob = await openParticipant(browser)
+    const carol = await openParticipant(browser)
+
+    // Alice creates the channel, so she is the one holding its id. Created
+    // from the panel rather than through an invite, because that is the path
+    // that also saves it — which is how the test learns the id.
+    await alice.goto('/')
+    await selfId(alice)
+    await alice.getByRole('button', { name: 'Canais' }).click()
+    await alice.getByRole('button', { name: '+ criar canal' }).click()
+    await expect(alice.getByRole('button', { name: 'Sair do canal' })).toBeVisible()
+
+    const saved = await alice.evaluate(() => localStorage.getItem('sinal.channels'))
+    const id = (JSON.parse(saved ?? '[]') as Array<{ id: string }>)[0]?.id
+    expect(id, 'o canal criado deveria estar salvo').toBeTruthy()
+
+    await bob.goto(`${baseURL}/#channel=${id}`)
+    await carol.goto(`${baseURL}/#channel=${id}`)
+    await expect(headcount(bob)).toHaveText('3', { timeout: 30_000 })
+    await expect(headcount(carol)).toHaveText('3', { timeout: 30_000 })
+
+    await alice.goto('about:blank')
+
+    // The anchor is a rendezvous point, never a relay: Bob and Carol talk to
+    // each other directly, so losing Alice must cost them only Alice.
+    await expect(headcount(bob)).toHaveText('2', { timeout: 20_000 })
+    await expect(headcount(carol)).toHaveText('2', { timeout: 20_000 })
+
+    // And the channel itself has to survive: one of them takes the vacant id,
+    // otherwise the room would quietly stop accepting anyone new.
+    await bob.getByRole('button', { name: 'Canais' }).click()
+    await expect(bob.getByRole('button', { name: 'Sair do canal' })).toBeVisible()
+
+    await bob.getByRole('button', { name: /Mensagens/ }).click()
+    await bob.getByLabel('Mensagem').fill('ainda aqui')
+    await bob.getByRole('button', { name: 'enviar' }).click()
+
+    await carol.getByRole('button', { name: /Mensagens/ }).click()
+    await expect(carol.getByText('ainda aqui')).toBeVisible()
+
+    for (const page of [alice, bob, carol]) await page.context().close()
+  })
+
   test('a mensagem de um chega ao outro', async ({ browser, baseURL }) => {
     const alice = await openParticipant(browser)
     const bob = await openParticipant(browser)

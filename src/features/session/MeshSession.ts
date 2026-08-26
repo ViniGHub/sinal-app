@@ -90,11 +90,19 @@ const RECLAIM_BASE_MS = 1_500
 const RECLAIM_JITTER_MS = 2_000
 
 /**
- * How many times to race for a channel before admitting it cannot be reached.
- * An anchor that answers the broker but never the peer means there is no path
- * between the two networks, and no amount of retrying builds one.
+ * Backoff ceiling, and how many rounds to try before giving up.
+ *
+ * The budget has to outlast the broker, not just the network. When an anchor's
+ * tab is killed rather than closed, the server keeps holding its id until its
+ * own ping timeout — up to about a minute — and every claim until then comes
+ * back "taken" by a peer that no longer answers. A fixed short retry would
+ * declare the channel unreachable in the middle of an ordinary handover.
+ *
+ * Doubling the wait covers that span in six rounds instead of twenty-five,
+ * which matters because each round opens a fresh socket to the broker.
  */
-const MAX_RECLAIM_ATTEMPTS = 4
+const RECLAIM_MAX_MS = 20_000
+const MAX_RECLAIM_ATTEMPTS = 6
 
 /** Our participation in a channel. Null when connected peer-to-peer only. */
 interface ChannelRuntime {
@@ -121,6 +129,9 @@ export const RENAME_COOLDOWN_MS = 3 * 60_000
 
 /** A media call needs a moment before its sender exists to be configured. */
 const ENCODING_SETTLE_MS = 800
+
+/** Time for a goodbye to reach the wire before the connection is torn down. */
+const CLOSE_FLUSH_MS = 300
 
 /** How long to hold a one-shot removal notice open so the message flushes. */
 const KICK_FLUSH_MS = 1_000
@@ -930,7 +941,10 @@ export class MeshSession {
       return
     }
 
-    const delay = RECLAIM_BASE_MS + Math.random() * RECLAIM_JITTER_MS
+    // Doubling, capped, plus jitter — the jitter is what keeps every remaining
+    // member from stampeding the broker in the same instant.
+    const backoff = Math.min(RECLAIM_BASE_MS * 2 ** (channel.attempts - 1), RECLAIM_MAX_MS)
+    const delay = backoff + Math.random() * RECLAIM_JITTER_MS
     diagnostics.info(
       'canal',
       `disputando ${shortId(channel.id)} em ${Math.round(delay)}ms (tentativa ${channel.attempts})`,
@@ -1473,12 +1487,39 @@ export class MeshSession {
     this.#publish()
   }
 
+  /**
+   * Closes a data connection in a way the other side notices immediately.
+   *
+   * PeerJS's plain `close()` tears down the local RTCPeerConnection and tells
+   * the peer nothing — they find out when the transport eventually times out,
+   * tens of seconds later. That is why leaving a channel left everyone else
+   * still showing the person who left. The flush variant sends an explicit
+   * goodbye over the channel, which the receiver turns into a close event
+   * straight away; the local teardown follows once it has had a moment to go
+   * out on the wire.
+   */
+  #closeConnection(conn: DataConnection | null): void {
+    if (!conn) return
+    try {
+      if (conn.open) conn.close({ flush: true })
+    } catch {
+      // Already closing; the hard close below still runs.
+    }
+    setTimeout(() => {
+      try {
+        conn.close()
+      } catch {
+        // Nothing left to tear down.
+      }
+    }, CLOSE_FLUSH_MS)
+  }
+
   #teardownRecord(record: PeerRecord): void {
     this.#clearDialTimer(record)
     record.audioCall?.close()
     record.screenOut?.close()
     record.cameraOut?.close()
-    record.conn?.close()
+    this.#closeConnection(record.conn)
     record.audioCall = null
     record.screenOut = null
     record.cameraOut = null
