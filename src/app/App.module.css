@@ -36,13 +36,27 @@
   justify-content: space-between;
   gap: var(--space-4);
   margin-bottom: var(--space-6);
-  flex-wrap: wrap;
+  /*
+   * No wrapping here on purpose. A wrapping flex line breaks *before* it
+   * shrinks, so a card a few pixels too wide dropped to its own row rather
+   * than giving up those pixels. Side by side, the card compresses instead.
+   * Stacking is still what a phone wants — see the query below.
+   */
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 720px) {
+  .header {
+    flex-wrap: wrap;
+  }
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  /* Lets the tagline wrap so the brand yields width before the header does. */
+  min-width: 0;
 }
 
 .brand h1 {

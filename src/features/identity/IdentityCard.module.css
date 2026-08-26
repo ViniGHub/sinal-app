@@ -7,6 +7,15 @@
   align-items: flex-end;
   gap: var(--space-4);
   flex-wrap: wrap;
+  /*
+   * Shrinkable, so the header keeps the card beside the brand instead of
+   * dropping it onto a second row. Without this the card's width is the sum of
+   * its contents, and the layout hinges on exact label lengths — the "create"
+   * wording overflowed the container by six pixels and pushed the whole card
+   * down. A name, a channel title or another language would do it again.
+   */
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .field {
@@ -14,6 +23,7 @@
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
+  flex-shrink: 1;
 }
 
 .label {
@@ -30,7 +40,9 @@
   font-family: var(--font-sans);
   font-size: 14px;
   padding: 2px 0;
+  /* Prefers 150px, gives ground before the card is forced onto its own row. */
   width: 150px;
+  min-width: 90px;
   outline: none;
 }
 
@@ -42,14 +54,20 @@
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
-  word-break: break-all;
-  max-width: 240px;
+  max-width: 200px;
+  /* A long channel name is trimmed rather than allowed to widen the card. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hint {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copy {

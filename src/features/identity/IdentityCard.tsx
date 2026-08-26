@@ -42,7 +42,7 @@ export function IdentityCard({ selfName, channel, ready }: IdentityCardProps) {
   }
 
   return (
-    <div className={styles.card}>
+    <div className={styles.card} data-testid="identity-card">
       <label className={styles.field}>
         <span className={styles.label}>seu nome</span>
         <input
@@ -69,7 +69,9 @@ export function IdentityCard({ selfName, channel, ready }: IdentityCardProps) {
       </div>
 
       <button type="button" className={styles.copy} disabled={!ready} onClick={share}>
-        {copied ? 'link copiado' : channel ? 'copiar link' : 'criar canal e copiar'}
+        {/* Short enough that swapping between the two never changes the card's
+            width by much — the field above already says this is about a channel. */}
+        {copied ? 'link copiado' : channel ? 'copiar link' : 'criar e copiar'}
       </button>
     </div>
   )

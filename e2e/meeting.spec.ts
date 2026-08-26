@@ -23,7 +23,7 @@ async function waitForReady(page: Page): Promise<void> {
   await expect(page.getByTestId('channel-id')).toBeVisible({ timeout: 30_000 })
   // The share button stays disabled until the broker has answered, so this is
   // the point from which a link can actually be produced.
-  await expect(page.getByRole('button', { name: /copiar|criar canal/ })).toBeEnabled({
+  await expect(page.getByRole('button', { name: /copiar|criar/ })).toBeEnabled({
     timeout: 30_000,
   })
 }
@@ -37,7 +37,7 @@ async function waitForReady(page: Page): Promise<void> {
  * shareable no matter what the app believes it did.
  */
 async function copyChannelLink(page: Page): Promise<string> {
-  await page.getByRole('button', { name: /copiar|criar canal/ }).click()
+  await page.getByRole('button', { name: /copiar|criar/ }).click()
   await expect(page.getByRole('button', { name: /link copiado/ })).toBeVisible()
   return page.evaluate(() => navigator.clipboard.readText())
 }
