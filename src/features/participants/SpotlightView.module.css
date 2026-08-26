@@ -37,7 +37,10 @@
 .inset {
   position: absolute;
   width: clamp(140px, 22%, 320px);
-  aspect-ratio: 4 / 3;
+  /* Shaped by the video rather than by a fixed ratio — see the note on
+     .cameraInset in PeerTile.module.css. A phone camera is portrait. */
+  height: auto;
+  max-height: 45%;
   border-radius: var(--radius);
   border: 1px solid var(--line-strong);
   overflow: hidden;
@@ -49,7 +52,12 @@
 }
 
 .inset video {
-  object-fit: cover;
+  /* Auto height is what lets the wrapper take the video's shape; contain then
+     keeps a very tall frame inside the max-height above without distorting. */
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .dragging {

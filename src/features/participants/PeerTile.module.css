@@ -40,8 +40,15 @@
   bottom: var(--space-2);
   width: 32%;
   max-width: 110px;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  /*
+   * The height follows the video's own shape instead of a fixed ratio. A phone
+   * camera is portrait, and forcing it into a landscape box cropped the middle
+   * out — what showed was a zoomed vertical slice of someone's face.
+   */
+  height: auto;
+  /* But never so tall that it swallows the tile it is floating over. */
+  max-height: 60%;
+  object-fit: contain;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: #05070a;

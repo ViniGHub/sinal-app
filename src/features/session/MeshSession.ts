@@ -89,6 +89,13 @@ const PROBE_TIMEOUT_MS = 6_000
 const RECLAIM_BASE_MS = 1_500
 const RECLAIM_JITTER_MS = 2_000
 
+/**
+ * How many times to race for a channel before admitting it cannot be reached.
+ * An anchor that answers the broker but never the peer means there is no path
+ * between the two networks, and no amount of retrying builds one.
+ */
+const MAX_RECLAIM_ATTEMPTS = 4
+
 /** Our participation in a channel. Null when connected peer-to-peer only. */
 interface ChannelRuntime {
   id: string
@@ -99,6 +106,8 @@ interface ChannelRuntime {
   reclaimTimer: ReturnType<typeof setTimeout> | null
   /** Detects an id that answers but is a person, not a channel. */
   knockTimer: ReturnType<typeof setTimeout> | null
+  /** Failed attempts to reach whoever holds this channel. */
+  attempts: number
 }
 
 /** How long an answering id has to identify itself as a channel. */
@@ -175,6 +184,7 @@ export class MeshSession {
   #sharing = false
   #attention: AttentionState = 'focused'
   #stopAttention: (() => void) | null = null
+  #stopUnload: (() => void) | null = null
 
   /** How this session reaches the network. Resolved once, in `start`. */
   #iceConfig: RTCConfiguration | undefined
@@ -240,6 +250,20 @@ export class MeshSession {
     // whole session should agree on how it reaches the network.
     this.#iceConfig = await resolveIceConfig(import.meta.env)
 
+    // Closing a tab does not run React cleanup, so without this the peer never
+    // says goodbye: the broker sends no LEAVE, no connection closes, and the
+    // people still in the room keep showing someone who is gone until the ICE
+    // transport gives up — tens of seconds later.
+    const onPageHide = (event: PageTransitionEvent) => {
+      // A page entering the back/forward cache can come back; only a real
+      // teardown should take the session with it.
+      if (event.persisted) return
+      diagnostics.info('peer', 'página fechando; encerrando a sessão')
+      this.destroy()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    this.#stopUnload = () => window.removeEventListener('pagehide', onPageHide)
+
     this.#attention = readAttention()
     this.#stopAttention = watchAttention((state) => {
       this.#attention = state
@@ -256,6 +280,8 @@ export class MeshSession {
 
     this.#stopAttention?.()
     this.#stopAttention = null
+    this.#stopUnload?.()
+    this.#stopUnload = null
     this.#clearInvite()
 
     for (const record of this.#records.values()) this.#teardownRecord(record)
@@ -809,6 +835,7 @@ export class MeshSession {
       anchor: null,
       reclaimTimer: null,
       knockTimer: null,
+      attempts: 0,
     }
     this.#setStatus('busy', `entrando no canal ${shortId(channelId)}…`)
     void this.#claimAnchor()
@@ -858,6 +885,9 @@ export class MeshSession {
         channel.knockTimer = null
       }
       diagnostics.info('canal', `âncora listou ${message.occupants.length} ocupante(s)`)
+      // Reached someone: a later anchor handover starts from a clean budget
+      // rather than inheriting failures from before.
+      channel.attempts = 0
       // Only the joiner knows the full list, so the joiner dials everyone.
       // Applying the usual initiator rule here would leave us waiting on peers
       // that have no idea we exist yet.
@@ -882,8 +912,29 @@ export class MeshSession {
     const channel = this.#channel
     if (!channel || channel.anchor || channel.reclaimTimer || this.#destroyed) return
 
+    channel.attempts += 1
+    // Knocking, failing and re-claiming forever is what this used to do: the
+    // channel stayed on screen, nothing connected, nobody was told, and a
+    // fresh broker socket was opened every couple of seconds. Reaching an
+    // anchor that answers but cannot be reached means the two sides have no
+    // network path — retrying harder never fixes that.
+    if (channel.attempts > MAX_RECLAIM_ATTEMPTS) {
+      diagnostics.error(
+        'canal',
+        `desisti de ${shortId(channel.id)} apos ${MAX_RECLAIM_ATTEMPTS} tentativas`,
+      )
+      this.#setStatus(
+        'error',
+        'entramos no canal, mas não foi possível alcançar quem está dentro — provavelmente a rede está bloqueando a conexão.',
+      )
+      return
+    }
+
     const delay = RECLAIM_BASE_MS + Math.random() * RECLAIM_JITTER_MS
-    diagnostics.info('canal', `disputando ${shortId(channel.id)} em ${Math.round(delay)}ms`)
+    diagnostics.info(
+      'canal',
+      `disputando ${shortId(channel.id)} em ${Math.round(delay)}ms (tentativa ${channel.attempts})`,
+    )
     channel.reclaimTimer = setTimeout(() => {
       channel.reclaimTimer = null
       void this.#claimAnchor()
@@ -906,6 +957,7 @@ export class MeshSession {
 
     if (outcome === 'anchored') {
       diagnostics.info('canal', `${shortId(channel.id)} estava vago; você é a âncora`)
+      channel.attempts = 0
       this.#setStatus('ok', `no canal ${shortId(channel.id)} — você está ancorando.`)
       this.#publish()
       return
@@ -1136,6 +1188,7 @@ export class MeshSession {
 
     conn.on('open', () => {
       diagnostics.info('peer', `canal de dados aberto com ${shortId(peerId)}`)
+      this.#watchTransport(peerId, conn)
       this.#patch(peerId, { status: 'connected' })
       this.#setStatus('ok', 'conectado.')
       this.#send(conn, {
@@ -1157,6 +1210,37 @@ export class MeshSession {
     conn.on('data', (raw) => this.#onData(peerId, raw))
     conn.on('close', () => this.#dropPeer(peerId))
     conn.on('error', () => this.#dropPeer(peerId))
+  }
+
+  /**
+   * Drops a peer whose transport has given up, rather than waiting for the
+   * data channel to notice on its own.
+   *
+   * This is the case a clean exit cannot cover: a phone that locked, a laptop
+   * that slept, a tab the browser killed. Nobody sent a goodbye, so the only
+   * evidence is the connection itself failing — and reacting to that is much
+   * faster than letting the channel time out.
+   */
+  #watchTransport(peerId: string, conn: DataConnection): void {
+    const connection = conn.peerConnection
+    if (!connection) return
+
+    const check = () => {
+      const state = connection.connectionState
+      // 'disconnected' recovers on its own more often than not, so it is worth
+      // recording but not worth acting on. 'failed' is terminal.
+      if (state === 'disconnected') {
+        diagnostics.warn('peer', `${shortId(peerId)} oscilando`)
+        return
+      }
+      if (state !== 'failed') return
+
+      diagnostics.warn('peer', `transporte com ${shortId(peerId)} falhou`)
+      this.#dropPeer(peerId)
+    }
+
+    connection.addEventListener('connectionstatechange', check)
+    connection.addEventListener('iceconnectionstatechange', check)
   }
 
   #onData(peerId: string, raw: unknown): void {

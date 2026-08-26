@@ -78,6 +78,31 @@ test.describe('encontro entre dois participantes', () => {
     await bob.close()
   })
 
+  test('fechar a aba remove a pessoa depressa, sem esperar o timeout', async ({
+    browser,
+    baseURL,
+  }) => {
+    const alice = await openParticipant(browser)
+    const bob = await openParticipant(browser)
+
+    await alice.goto('/')
+    const aliceId = await selfId(alice)
+    await bob.goto(`${baseURL}/#join=${aliceId}`)
+    await expect(headcount(alice)).toHaveText('2')
+
+    // Navigating away rather than killing the context: this is the path a real
+    // tab close takes through `pagehide`, and it is the one the app hooks.
+    // Playwright's context.close() tears the target down without running it.
+    await bob.goto('about:blank')
+
+    // Without a goodbye on unload this waits for the ICE transport to give up,
+    // which is tens of seconds — long enough that people assume it is broken.
+    await expect(headcount(alice)).toHaveText('1', { timeout: 15_000 })
+
+    await alice.context().close()
+    await bob.context().close()
+  })
+
   test('a mensagem de um chega ao outro', async ({ browser, baseURL }) => {
     const alice = await openParticipant(browser)
     const bob = await openParticipant(browser)
