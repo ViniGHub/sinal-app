@@ -22,6 +22,17 @@ async function openWithPermission(
   return page
 }
 
+/**
+ * Creates a channel, because chat is disabled outside of one — messages
+ * belong to a room, not to the app.
+ */
+async function enterChannel(page: Page) {
+  const share = page.getByRole('button', { name: /copiar|criar/ })
+  await expect(share).toBeEnabled({ timeout: 30_000 })
+  await share.click()
+  await expect(page.getByRole('button', { name: /Mensagens/ })).toBeEnabled({ timeout: 30_000 })
+}
+
 function toggleOf(page: Page) {
   return page.getByRole('button', { name: /notificações|bloqueadas/ })
 }
@@ -30,6 +41,7 @@ test.describe('notificações de mensagem', () => {
   test('o botão aparece nas mensagens e alterna de estado', async ({ browser }) => {
     const page = await openWithPermission(browser, 'granted')
     await page.goto('/')
+    await enterChannel(page)
     await page.getByRole('button', { name: /Mensagens/ }).click()
 
     const toggle = toggleOf(page)
@@ -49,10 +61,12 @@ test.describe('notificações de mensagem', () => {
   test('a escolha sobrevive a um recarregamento', async ({ browser }) => {
     const page = await openWithPermission(browser, 'granted')
     await page.goto('/')
+    await enterChannel(page)
     await page.getByRole('button', { name: /Mensagens/ }).click()
     await toggleOf(page).click()
 
     await page.reload()
+    await enterChannel(page)
     await page.getByRole('button', { name: /Mensagens/ }).click()
 
     // A preference that resets on reload is worse than none: people set it
@@ -67,6 +81,7 @@ test.describe('notificações de mensagem', () => {
   }) => {
     const page = await openWithPermission(browser, 'denied')
     await page.goto('/')
+    await enterChannel(page)
     await page.getByRole('button', { name: /Mensagens/ }).click()
 
     const toggle = toggleOf(page)

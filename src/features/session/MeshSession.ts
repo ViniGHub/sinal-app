@@ -867,6 +867,9 @@ export class MeshSession {
     channel.anchor?.destroy()
 
     for (const peerId of [...this.#records.keys()]) this.#dropPeer(peerId)
+    // The conversation belonged to that channel. Carrying it into the next one
+    // would show a room its own history had nothing to do with.
+    this.#messages = []
     this.#setStatus('idle', 'você saiu do canal.')
     this.#publish()
   }

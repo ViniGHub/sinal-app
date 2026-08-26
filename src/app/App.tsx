@@ -80,6 +80,12 @@ export function App() {
     if (chatOpen) setReadCount(mesh.messages.length)
   }, [chatOpen, mesh.messages.length])
 
+  // Chat belongs to a channel, so leaving one has to take the panel with it —
+  // otherwise it stays open over a conversation that no longer has anyone in it.
+  useEffect(() => {
+    if (chatOpen && !mesh.channel) setPanel(null)
+  }, [chatOpen, mesh.channel])
+
   const toggleChat = useCallback(
     () => setPanel((current) => (current === 'chat' ? null : 'chat')),
     [],

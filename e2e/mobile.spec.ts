@@ -38,7 +38,12 @@ test.describe('em tela de celular', () => {
   test('o botão Mensagens continua clicável com o painel aberto', async ({ page }) => {
     await page.goto('/')
 
+    // Chat needs a channel, so create one first — the button is disabled
+    // outside of one.
+    await page.getByRole('button', { name: /copiar|criar/ }).click()
+
     const button = page.getByRole('button', { name: /Mensagens/ })
+    await expect(button).toBeEnabled({ timeout: 30_000 })
     await button.click()
     await expect(page.getByRole('complementary', { name: 'Mensagens' })).toBeVisible()
 
@@ -51,7 +56,7 @@ test.describe('em tela de celular', () => {
   test('a barra de controles não engole a tela', async ({ page }) => {
     await page.goto('/')
 
-    const bar = page.locator('div').filter({ hasText: /^Mic/ }).last()
+    const bar = page.getByTestId('control-bar')
     const box = await bar.boundingBox()
     const viewport = page.viewportSize()
     expect(box).not.toBeNull()

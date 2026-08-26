@@ -71,6 +71,33 @@
 
 .button:hover { border-color: var(--line-strong); }
 
+/*
+ * The transmit controls. Square-ish rather than pill-shaped, so a row of them
+ * reads as a set of switches instead of a sentence.
+ */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  line-height: 0;
+}
+
+.icon:hover:not(:disabled) { border-color: var(--line-strong); }
+
+/* Separates what you transmit from where you go. */
+.divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
 .live { border-color: var(--signal-dim); color: var(--signal); }
 .muted { border-color: var(--danger); color: var(--danger); }
 .sharing { border-color: var(--warn); color: var(--warn); }

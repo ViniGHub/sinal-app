@@ -1,4 +1,5 @@
 import { useSession } from '@/features/session/useMesh'
+import { CameraIcon, MicIcon, ScreenIcon } from './icons'
 import { OptionMenu } from './OptionMenu'
 import { SCREEN_QUALITIES, type ScreenQualityId } from './quality'
 import { MicMeter } from './MicMeter'
@@ -51,20 +52,27 @@ export function ControlBar({
   const barRef = useControlBarHeight()
 
   return (
-    <div className={styles.bar} ref={barRef}>
+    <div className={styles.bar} ref={barRef} data-testid="control-bar">
+      {/*
+       * What you transmit. Icons rather than labels: these three are toggled
+       * constantly and their state is what matters, not their name — and the
+       * words took more room than the whole rest of the bar.
+       */}
       <div className={styles.group}>
         <button
           type="button"
-          className={`${styles.button} ${micMuted ? styles.muted : styles.live}`}
+          className={`${styles.icon} ${micMuted ? styles.muted : styles.live}`}
           onClick={() => session.setMicMuted(!micMuted)}
           disabled={!hasMic}
           aria-pressed={micMuted}
-          title={hasMic ? undefined : 'nenhum microfone disponível'}
+          aria-label={hasMic ? (micMuted ? 'Ativar microfone' : 'Silenciar microfone') : 'Sem microfone'}
+          title={hasMic ? (micMuted ? 'Mic mudo' : 'Mic ativo') : 'nenhum microfone disponível'}
         >
-          <span>{hasMic ? (micMuted ? 'Mic mudo' : 'Mic ativo') : 'Sem microfone'}</span>
+          <MicIcon muted={micMuted} />
           <MicMeter level={level} muted={micMuted} />
         </button>
 
+        {/* Always offered: switching microphones is worth doing even muted. */}
         <OptionMenu
           options={devices.microphones}
           selected={micDeviceId}
@@ -76,47 +84,63 @@ export function ControlBar({
       <div className={styles.group}>
         <button
           type="button"
-          className={`${styles.button} ${cameraOn ? styles.live : ''}`}
+          className={`${styles.icon} ${cameraOn ? styles.live : ''}`}
           onClick={() => session.toggleCamera()}
           aria-pressed={cameraOn}
+          aria-label={cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
+          title={cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
         >
-          {cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
+          <CameraIcon on={cameraOn} />
         </button>
 
-        <OptionMenu
-          options={devices.cameras}
-          selected={cameraDeviceId}
-          label="Escolher câmera"
-          onSelect={(id) => void session.switchCamera(id)}
-        />
+        {/* Only while the camera is on: choosing between lenses you are not
+            using is a decision with nothing to show for it. */}
+        {cameraOn && (
+          <OptionMenu
+            options={devices.cameras}
+            selected={cameraDeviceId}
+            label="Escolher câmera"
+            onSelect={(id) => void session.switchCamera(id)}
+          />
+        )}
       </div>
 
       <div className={styles.group}>
         <button
           type="button"
-          className={`${styles.button} ${sharing ? styles.sharing : ''}`}
+          className={`${styles.icon} ${sharing ? styles.sharing : ''}`}
           onClick={() => session.toggleSharing()}
           aria-pressed={sharing}
+          aria-label={sharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
+          title={sharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
         >
-          {sharing ? 'Parar compartilhamento' : 'Compartilhar tela'}
+          <ScreenIcon on={sharing} />
         </button>
 
-        {/* Offered even while not sharing: the choice is remembered and
-            applies to the next screen, so it can be set in advance. */}
-        <OptionMenu
-          options={SCREEN_QUALITIES.map(({ id, label }) => ({ id, label }))}
-          selected={screenQuality}
-          label="Qualidade do compartilhamento"
-          onSelect={(id) => void session.setScreenQuality(id as ScreenQualityId)}
-        />
+        {/* Only while sharing: quality is a change you make while watching its
+            effect, and it applies live. */}
+        {sharing && (
+          <OptionMenu
+            options={SCREEN_QUALITIES.map(({ id, label }) => ({ id, label }))}
+            selected={screenQuality}
+            label="Qualidade do compartilhamento"
+            onSelect={(id) => void session.setScreenQuality(id as ScreenQualityId)}
+          />
+        )}
       </div>
+
+      {/* Where you are, and what you open. Kept as words: these are places to
+          go rather than states to flip, and a glyph would not name them. */}
+      <span className={styles.divider} aria-hidden="true" />
 
       <button
         type="button"
         className={styles.button}
         onClick={onToggleChat}
         aria-pressed={chatOpen}
+        disabled={!inChannel}
         aria-label={`Mensagens${unreadCount ? `, ${unreadCount} não lidas` : ''}`}
+        title={inChannel ? undefined : 'entre num canal para conversar'}
       >
         <span>Mensagens</span>
         {unreadCount > 0 && <span className={styles.badge}>{unreadCount}</span>}
