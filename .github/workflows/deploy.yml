@@ -63,7 +63,12 @@ jobs:
           retention-days: 7
 
   deploy:
-    needs: [verify, e2e]
+    # Deliberately not gated on `e2e`. Those tests drive real WebRTC through
+    # the public PeerJS broker — a third party we do not control — and letting
+    # its bad day block a fix from shipping is worse than the protection is
+    # worth. They still run, and still show red, on every push and pull
+    # request. Gate on them once they run against a broker we own.
+    needs: [verify]
     # A pull request should be checked, never published.
     if: github.event_name != 'pull_request'
     environment:

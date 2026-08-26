@@ -17,8 +17,10 @@ export default defineConfig({
 
   // A WebRTC handshake is seconds, not milliseconds: broker round trip, offer,
   // answer, ICE. Unit-test timeouts would fail on healthy runs.
-  timeout: 90_000,
-  expect: { timeout: 25_000 },
+  // CI runners are slower than a laptop and further from the broker, and every
+  // one of these waits is a network round trip rather than a computation.
+  timeout: process.env.CI ? 180_000 : 90_000,
+  expect: { timeout: process.env.CI ? 60_000 : 25_000 },
 
   // Two peers per test share one signalling broker, and parallel tests would
   // make a timing failure impossible to attribute.
