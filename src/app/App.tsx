@@ -154,7 +154,11 @@ export function App() {
               <p className={styles.tagline}>voz + tela, direto entre vocês — sem servidor no meio</p>
             </div>
           </div>
-          <IdentityCard selfId={mesh.selfId} selfName={mesh.selfName} />
+          <IdentityCard
+            selfName={mesh.selfName}
+            channel={mesh.channel}
+            ready={mesh.selfId !== null}
+          />
         </header>
 
         <StatusLine status={mesh.status} />

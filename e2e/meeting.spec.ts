@@ -10,15 +10,36 @@ import { expect, test, type Browser, type Page } from '@playwright/test'
 async function openParticipant(browser: Browser): Promise<Page> {
   // Granting up front avoids the permission prompt that would otherwise stall
   // the very first getUserMedia call.
-  const context = await browser.newContext({ permissions: ['microphone'] })
+  const context = await browser.newContext({
+    // Clipboard access because sharing a channel goes through it, which is the
+    // path a person actually takes.
+    permissions: ['microphone', 'clipboard-read', 'clipboard-write'],
+  })
   return context.newPage()
 }
 
-/** Waits for the broker to hand this browser an id, and returns it. */
-async function selfId(page: Page): Promise<string> {
-  const id = page.getByTestId('self-id')
-  await expect(id).not.toHaveText('gerando…', { timeout: 30_000 })
-  return (await id.innerText()).trim()
+/** Waits until this browser is registered and able to produce a link. */
+async function waitForReady(page: Page): Promise<void> {
+  await expect(page.getByTestId('channel-id')).toBeVisible({ timeout: 30_000 })
+  // The share button stays disabled until the broker has answered, so this is
+  // the point from which a link can actually be produced.
+  await expect(page.getByRole('button', { name: /copiar|criar canal/ })).toBeEnabled({
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Presses the share button and returns the link it put on the clipboard,
+ * creating the channel if there was none.
+ *
+ * Read from the clipboard rather than from internals, because copying and
+ * pasting *is* the feature — a link that never reaches the clipboard is not
+ * shareable no matter what the app believes it did.
+ */
+async function copyChannelLink(page: Page): Promise<string> {
+  await page.getByRole('button', { name: /copiar|criar canal/ }).click()
+  await expect(page.getByRole('button', { name: /link copiado/ })).toBeVisible()
+  return page.evaluate(() => navigator.clipboard.readText())
 }
 
 function headcount(page: Page) {
@@ -26,16 +47,19 @@ function headcount(page: Page) {
 }
 
 test.describe('encontro entre dois participantes', () => {
-  test('o link pessoal cria um canal e coloca os dois nele', async ({ browser, baseURL }) => {
+  test('o link copiado cria um canal e coloca os dois nele', async ({ browser }) => {
     const alice = await openParticipant(browser)
     const bob = await openParticipant(browser)
 
     await alice.goto('/')
-    const aliceId = await selfId(alice)
+    await waitForReady(alice)
 
-    // Opening someone's personal link is one of the two doors into a channel:
-    // Alice has none yet, so answering Bob is what brings one into existence.
-    await bob.goto(`${baseURL}/#join=${aliceId}`)
+    // Alice is in no channel yet, so pressing share is what brings one into
+    // existence — the app never hands out anything but a channel link.
+    const link = await copyChannelLink(alice)
+    expect(link).toContain('#channel=sinal-c-')
+
+    await bob.goto(link)
 
     // Both sides count themselves plus the other. The assertion is deliberately
     // made on both: a mesh where only one side sees the other is the exact
@@ -55,7 +79,7 @@ test.describe('encontro entre dois participantes', () => {
     const bob = await openParticipant(browser)
 
     await alice.goto('/')
-    await selfId(alice)
+    await waitForReady(alice)
 
     // Alice creates a channel and becomes its anchor.
     await alice.getByRole('button', { name: 'Canais' }).click()
@@ -78,16 +102,13 @@ test.describe('encontro entre dois participantes', () => {
     await bob.close()
   })
 
-  test('fechar a aba remove a pessoa depressa, sem esperar o timeout', async ({
-    browser,
-    baseURL,
-  }) => {
+  test('fechar a aba remove a pessoa depressa, sem esperar o timeout', async ({ browser }) => {
     const alice = await openParticipant(browser)
     const bob = await openParticipant(browser)
 
     await alice.goto('/')
-    const aliceId = await selfId(alice)
-    await bob.goto(`${baseURL}/#join=${aliceId}`)
+    await waitForReady(alice)
+    await bob.goto(await copyChannelLink(alice))
     await expect(headcount(alice)).toHaveText('2')
 
     // Navigating away rather than killing the context: this is the path a real
@@ -112,7 +133,7 @@ test.describe('encontro entre dois participantes', () => {
     // from the panel rather than through an invite, because that is the path
     // that also saves it — which is how the test learns the id.
     await alice.goto('/')
-    await selfId(alice)
+    await waitForReady(alice)
     await alice.getByRole('button', { name: 'Canais' }).click()
     await alice.getByRole('button', { name: '+ criar canal' }).click()
     await expect(alice.getByRole('button', { name: 'Sair do canal' })).toBeVisible()
@@ -148,13 +169,13 @@ test.describe('encontro entre dois participantes', () => {
     for (const page of [alice, bob, carol]) await page.context().close()
   })
 
-  test('a mensagem de um chega ao outro', async ({ browser, baseURL }) => {
+  test('a mensagem de um chega ao outro', async ({ browser }) => {
     const alice = await openParticipant(browser)
     const bob = await openParticipant(browser)
 
     await alice.goto('/')
-    const aliceId = await selfId(alice)
-    await bob.goto(`${baseURL}/#join=${aliceId}`)
+    await waitForReady(alice)
+    await bob.goto(await copyChannelLink(alice))
 
     await expect(headcount(bob)).toHaveText('2')
 

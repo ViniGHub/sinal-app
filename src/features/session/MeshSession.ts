@@ -480,10 +480,12 @@ export class MeshSession {
   }
 
   /**
-   * The channel we are in, creating one if we are not in any yet. This is what
-   * makes a personal link able to conjure a room out of nothing.
+   * The channel we are in, creating one if we are not in any yet.
+   *
+   * Every link the app hands out is a channel link, so asking for one has to be
+   * able to bring a channel into existence — there is nothing else to share.
    */
-  #ensureChannel(): string | null {
+  ensureChannel(): string | null {
     if (this.#channel) return this.#channel.id
     if (!this.#peer || this.#destroyed) return null
     const id = generateChannelId()
@@ -1182,7 +1184,7 @@ export class MeshSession {
     // connection never becomes a participant either.
     if (metadata?.invite === true) {
       conn.on('open', () => {
-        const channelId = this.#ensureChannel()
+        const channelId = this.ensureChannel()
         if (!channelId) return
         this.#send(conn, { t: 'channel', id: channelId })
       })

@@ -1,27 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildChannelInviteUrl, buildInviteUrl, extractInviteId, readInvite } from '../invite'
+import { buildChannelInviteUrl, extractInviteId, readInvite } from '../invite'
 
 const ID = 'sinal-abc23xyz9k7m'
 const CHANNEL = 'sinal-c-abc23xyz9k'
 
-describe('buildInviteUrl', () => {
+describe('buildChannelInviteUrl', () => {
   it('appends the id as a fragment so it never reaches the host', () => {
-    expect(buildInviteUrl(ID, 'https://exemplo.dev/sinal/')).toBe(
-      `https://exemplo.dev/sinal/#join=${ID}`,
+    expect(buildChannelInviteUrl(CHANNEL, 'https://exemplo.dev/sinal/')).toBe(
+      `https://exemplo.dev/sinal/#channel=${CHANNEL}`,
     )
   })
 
   it('replaces an existing fragment instead of stacking another one', () => {
-    expect(buildInviteUrl(ID, 'https://exemplo.dev/#join=outro')).toBe(
-      `https://exemplo.dev/#join=${ID}`,
+    expect(buildChannelInviteUrl(CHANNEL, 'https://exemplo.dev/#channel=outro')).toBe(
+      `https://exemplo.dev/#channel=${CHANNEL}`,
     )
   })
-})
 
-describe('buildChannelInviteUrl', () => {
-  it('uses a distinct prefix so the reader knows how to act on it', () => {
-    expect(buildChannelInviteUrl(CHANNEL, 'https://exemplo.dev/')).toBe(
+  it('replaces a personal fragment too, so an old link cannot linger', () => {
+    expect(buildChannelInviteUrl(CHANNEL, `https://exemplo.dev/#join=${ID}`)).toBe(
       `https://exemplo.dev/#channel=${CHANNEL}`,
     )
   })
@@ -48,7 +46,9 @@ describe('extractInviteId', () => {
 })
 
 describe('readInvite', () => {
-  it('round-trips a peer invite', () => {
+  // Still read, never written: links shared before channels existed point at
+  // a person, and enter() resolves those by asking where they are.
+  it('ainda lê um link pessoal antigo', () => {
     expect(readInvite(`#join=${ID}`)).toEqual({ kind: 'peer', id: ID })
   })
 

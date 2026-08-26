@@ -5,26 +5,24 @@ import { isValidPeerId } from '@/features/session/protocol'
  * are never sent to the server hosting the page, so the id of a call stays
  * between the people in it.
  */
+/**
+ * The app only ever hands out channel links. `#join=` is still read, because
+ * links shared before that decision still exist and still point at a person —
+ * `MeshSession.enter` resolves those by asking them which channel they are in.
+ * Nothing writes one any more.
+ */
 const PEER_PREFIX = '#join='
 const CHANNEL_PREFIX = '#channel='
 
 export interface Invite {
-  /** 'channel' outlives its creator; 'peer' reaches one specific person. */
+  /** 'channel' is what we produce; 'peer' only ever arrives from an old link. */
   kind: 'channel' | 'peer'
   id: string
 }
 
-function buildUrl(prefix: string, id: string, origin: string): string {
-  const base = origin.split('#')[0] ?? origin
-  return `${base}${prefix}${encodeURIComponent(id)}`
-}
-
-export function buildInviteUrl(peerId: string, origin = window.location.href): string {
-  return buildUrl(PEER_PREFIX, peerId, origin)
-}
-
 export function buildChannelInviteUrl(channelId: string, origin = window.location.href): string {
-  return buildUrl(CHANNEL_PREFIX, channelId, origin)
+  const base = origin.split('#')[0] ?? origin
+  return `${base}${CHANNEL_PREFIX}${encodeURIComponent(channelId)}`
 }
 
 function decode(value: string): string | null {

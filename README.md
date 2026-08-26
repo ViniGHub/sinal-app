@@ -82,10 +82,19 @@ src/
 **Toda conexão acontece dentro de um canal.** Não existe conversa fora de um.
 Há duas portas, e elas convergem:
 
+O app **só distribui link de canal**. O botão de compartilhar entrega o link do
+canal em que você está — e cria um na hora, se você não estiver em nenhum,
+porque pedir algo para compartilhar tem de produzir algo compartilhável.
+
 | você abre | acontece |
 |---|---|
 | link de canal (`#channel=`) | entra nele; se estiver vazio, você o cria ao entrar |
-| link pessoal (`#join=`) | pergunta à pessoa em que canal ela está — se ela não estiver em nenhum, ela cria um na hora |
+| link pessoal (`#join=`) | **formato antigo, só de entrada** — pergunta à pessoa em que canal ela está e vai para lá |
+
+O link pessoal apontava para uma sessão de navegador, então expirava junto com
+ela, e fazia "onde estamos conversando" ter duas respostas conforme o caminho
+usado. Continua sendo lido, para os links já compartilhados não quebrarem, mas
+nada mais o escreve.
 
 `MeshSession.enter` é a única porta de entrada e decide qual caminho seguir a
 partir do próprio ID. Por isso o prefixo `sinal-c-` é **funcional**, não
@@ -94,8 +103,9 @@ ID de uma *pessoa* colidiria com o registro dela e forçaria a identidade dela a
 rotacionar. Os dois tipos precisam ser distinguidos antes de qualquer
 reivindicação.
 
-O link pessoal nunca muda, então pode ser divulgado uma vez e reutilizado para
-sempre — cada pessoa que o abrir cai num canal com você.
+O link de um canal vale enquanto o canal existir, e o canal existe enquanto
+alguém estiver dentro — mas o link continua válido depois disso, porque a
+próxima pessoa a abri-lo recria o canal com o mesmo ID.
 
 Um canal tem identidade própria: ele não é uma pessoa, e sobrevive à saída de
 quem o criou.
