@@ -16,6 +16,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
+  /* Clears the notch: the panel starts at the very top of the screen. */
+  padding-top: max(var(--space-3), env(safe-area-inset-top));
   border-bottom: 1px solid var(--line);
   font-family: var(--font-mono);
   font-size: 11px;

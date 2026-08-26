@@ -7,12 +7,46 @@
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
   padding: var(--space-4) var(--space-5);
+  /* Clears the home indicator on iPhones; zero everywhere else. */
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
   flex-wrap: wrap;
   z-index: 10;
+}
+
+@media (max-width: 720px) {
+  /*
+   * One scrollable row instead of wrapping onto three or four. Wrapping made
+   * the bar tall enough to eat half a phone screen, and everything laid out
+   * above it had to give way for controls that are mostly not being used.
+   */
+  .bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    /* The row scrolls; a scrollbar over the controls would only get in the way. */
+    scrollbar-width: none;
+  }
+
+  .bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Without this the controls squeeze themselves instead of scrolling. */
+  .bar > * {
+    flex-shrink: 0;
+  }
+
+  .button {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
 }
 
 /* A capture button and its device picker, kept together when the bar wraps. */

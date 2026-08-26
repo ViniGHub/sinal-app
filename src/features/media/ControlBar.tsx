@@ -3,6 +3,7 @@ import { OptionMenu } from './OptionMenu'
 import { SCREEN_QUALITIES, type ScreenQualityId } from './quality'
 import { MicMeter } from './MicMeter'
 import { useMediaDevices } from './useMediaDevices'
+import { useControlBarHeight } from './useControlBarHeight'
 import { useMicLevel } from './useMicLevel'
 import styles from './ControlBar.module.css'
 
@@ -47,9 +48,10 @@ export function ControlBar({
   // Labels only become readable once the matching device has been opened, so
   // the lists are re-read whenever a capture starts or stops.
   const devices = useMediaDevices(`${hasMic}:${cameraOn}`)
+  const barRef = useControlBarHeight()
 
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} ref={barRef}>
       <div className={styles.group}>
         <button
           type="button"

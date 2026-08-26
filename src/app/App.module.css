@@ -1,6 +1,18 @@
 .page {
   min-height: 100vh;
-  padding: 28px var(--space-5) calc(var(--control-bar-height) + var(--space-6));
+  /* The bottom clearance is measured from the real bar — see
+     useControlBarHeight. The footer lives at the end of this padding, and a
+     guessed height is what used to bury the diagnostics link under the bar. */
+  padding: calc(28px + env(safe-area-inset-top)) var(--space-5)
+    calc(var(--control-bar-height) + var(--space-6));
+  padding-left: max(var(--space-5), env(safe-area-inset-left));
+  padding-right: max(var(--space-5), env(safe-area-inset-right));
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+  }
 }
 
 /*
