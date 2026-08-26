@@ -276,6 +276,39 @@ negociar, porque o remetente ainda não existe no momento da ligação.
 O `contentHint` é uma **dica**, não uma restrição: navegadores que não a
 implementam ignoram a propriedade.
 
+### Notificações de mensagem
+
+Um botão rotulado no cabeçalho das mensagens liga o aviso do sistema. Ele só
+dispara quando a aba **não** está à frente da pessoa — reaproveitando o mesmo
+`readAttention` da atenção dos participantes. Notificar algo que já está na tela
+é ruído, e ruído é como se aprende a desligar notificações de vez.
+
+Toda razão para ficar em silêncio é conferida num lugar só, em
+`showMessageNotification`, para não haver como esquecer uma delas.
+
+A permissão é pedida no **clique**, porque é esse o gesto que o navegador exige;
+pedir no carregamento é negado por padrão. E o estado da permissão vive em
+estado do React, não é lido a cada render: conceder é assíncrono, e um rótulo
+ainda dizendo "bloqueadas" logo depois de a pessoa permitir pareceria um botão
+quebrado.
+
+Quando o navegador bloqueia de vez, o botão diz `bloqueadas` e fica desabilitado
+em vez de oferecer um interruptor que não faz nada.
+
+### Câmera em janela flutuante
+
+O botão **destacar**, no bloco de quem está com a câmera ligada, abre a imagem
+numa janela *picture-in-picture* — desenhada pelo navegador, não pela página,
+então ela fica por cima de outras abas e de outros programas. É a única forma de
+continuar vendo alguém enquanto se trabalha em outro lugar.
+
+Só para a câmera: uma janelinha flutuante serve para manter um rosto à vista, o
+que não é o propósito de uma tela compartilhada.
+
+Ela fecha sozinha se o bloco sumir — a janela sobrevive ao layout da página, e
+sem isso ficaria flutuando o vídeo de alguém que já saiu. O Firefox não
+implementa a API (tem o próprio botão nativo), e nele o controle não aparece.
+
 ### Presença
 
 O broker não tem endpoint de "esse ID está online?", então a única resposta

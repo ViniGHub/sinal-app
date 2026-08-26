@@ -3,6 +3,7 @@ import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
 import { ExpandChoice } from './ExpandChoice'
 import type { AttentionState, RemotePeer, SpotlightTarget } from './types'
+import { usePictureInPicture } from './usePictureInPicture'
 import styles from './PeerTile.module.css'
 
 const STATUS_LABEL: Record<RemotePeer['status'], string> = {
@@ -43,6 +44,7 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
   const screenRef = useMediaStream<HTMLVideoElement>(peer.screenStream)
   const cameraRef = useMediaStream<HTMLVideoElement>(peer.cameraStream)
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
+  const pip = usePictureInPicture(cameraRef)
 
   const hasVideo = peer.screenStream !== null || peer.cameraStream !== null
 
@@ -65,6 +67,25 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
         )}
 
         {!hasVideo && <p className={styles.placeholder}>sem vídeo</p>}
+
+        {/* Only for the camera: a floating window is for keeping a face in
+            sight while working elsewhere, which is not what a shared screen
+            is for — and it is the camera element the API is attached to. */}
+        {peer.cameraStream && pip.supported && (
+          <button
+            type="button"
+            className={`${styles.pip} ${pip.active ? styles.pipOn : ''}`}
+            onClick={pip.toggle}
+            aria-pressed={pip.active}
+            title={
+              pip.active
+                ? 'fechar a janela flutuante'
+                : 'ver esta câmera numa janela que fica por cima de outras abas'
+            }
+          >
+            {pip.active ? '⧉ flutuando' : '⧉ destacar'}
+          </button>
+        )}
 
         <ExpandChoice
           id={peer.id}

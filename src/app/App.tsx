@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ChannelsPanel } from '@/features/channels/ChannelsPanel'
 import { ChatPanel } from '@/features/chat/ChatPanel'
+import {
+  loadNotificationsEnabled,
+  notificationState,
+  requestNotifications,
+  saveNotificationsEnabled,
+} from '@/features/chat/notifications'
+import { useChatNotifications } from '@/features/chat/useChatNotifications'
 import { IdentityCard } from '@/features/identity/IdentityCard'
 import { clearInvite, readInvite } from '@/features/identity/invite'
 import { ControlBar } from '@/features/media/ControlBar'
@@ -23,6 +30,27 @@ export function App() {
   // screen, so opening one has to close the other.
   const [panel, setPanel] = useState<'chat' | 'channels' | 'diagnostics' | null>(null)
   const [readCount, setReadCount] = useState(0)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(loadNotificationsEnabled)
+  // Kept in state, not read at render: granting happens asynchronously, and a
+  // label still reading "bloqueadas" after the person just allowed it would
+  // look like the button did nothing.
+  const [notificationPermission, setNotificationPermission] = useState(notificationState)
+
+  // Lives here rather than in the chat panel: the point is to reach someone
+  // who is not looking, and the panel is usually closed when that is true.
+  useChatNotifications(mesh.messages, notificationsEnabled)
+
+  const toggleNotifications = useCallback(() => {
+    const next = !notificationsEnabled
+    setNotificationsEnabled(next)
+    saveNotificationsEnabled(next)
+
+    // Permission is requested here because this click is the user gesture the
+    // browser requires; asking on load is denied by default.
+    if (next && notificationPermission === 'default') {
+      void requestNotifications().then(setNotificationPermission)
+    }
+  }, [notificationsEnabled, notificationPermission])
   // Which participant's video fills the page, and which of their sources.
   const [spotlight, setSpotlight] = useState<SpotlightTarget | null>(null)
   const invited = useRef(false)
@@ -170,7 +198,14 @@ export function App() {
         />
       )}
 
-      <ChatPanel messages={mesh.messages} open={chatOpen} onClose={closePanel} />
+      <ChatPanel
+        messages={mesh.messages}
+        open={chatOpen}
+        onClose={closePanel}
+        notificationsEnabled={notificationsEnabled}
+        notificationPermission={notificationPermission}
+        onToggleNotifications={toggleNotifications}
+      />
       <ChannelsPanel open={panel === 'channels'} onClose={closePanel} />
       <DiagnosticsPanel open={panel === 'diagnostics'} onClose={closePanel} />
 
