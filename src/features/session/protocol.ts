@@ -34,6 +34,8 @@ export type WireMessage =
   | { t: 'screen'; sharing: boolean }
   | { t: 'camera'; on: boolean }
   | { t: 'attention'; attention: AttentionState }
+  /** Transient, so it is never part of the handshake — it starts false. */
+  | { t: 'speaking'; speaking: boolean }
   | { t: 'chat'; text: string; at: number }
   /**
    * Answer to a personal invite: the channel to meet in. The person being
@@ -176,6 +178,8 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'camera', on: msg['on'] === true }
     case 'attention':
       return { t: 'attention', attention: cleanAttention(msg['attention']) }
+    case 'speaking':
+      return { t: 'speaking', speaking: msg['speaking'] === true }
     case 'kick':
       // Empty when it came from a build that predates the field; the receiver
       // falls back to the name it already holds for that peer.

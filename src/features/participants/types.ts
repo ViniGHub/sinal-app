@@ -51,6 +51,13 @@ export interface RemotePeer {
   status: PeerStatus
   /** Whether they told us their microphone is muted. */
   micMuted: boolean
+  /** Whether their microphone is picking up speech right now. */
+  speaking: boolean
+  /**
+   * How loudly we play them, from 0 to 1. Local only — nobody else is told,
+   * because it says nothing about them and everything about our own room.
+   */
+  volume: number
   /** Whether their tab is in front of them, as far as their browser can tell. */
   attention: AttentionState
   /** Their voice, or null while the audio call is still being set up. */

@@ -34,6 +34,7 @@ import {
 } from '@/features/media/quality'
 import type { AttentionState, Occupant, RemotePeer } from '@/features/participants/types'
 import { diagnostics } from '@/shared/diagnostics'
+import { watchSpeaking } from '@/features/media/speaking'
 import { readAttention, watchAttention } from './attention'
 import { isAdminName } from './moderation'
 import { resolveIceConfig } from './ice'
@@ -196,6 +197,7 @@ export class MeshSession {
   #attention: AttentionState = 'focused'
   #stopAttention: (() => void) | null = null
   #stopUnload: (() => void) | null = null
+  #stopSpeaking: (() => void) | null = null
 
   /** How this session reaches the network. Resolved once, in `start`. */
   #iceConfig: RTCConfiguration | undefined
@@ -245,6 +247,7 @@ export class MeshSession {
       this.#mic = await acquireMicrophone(this.#micDeviceId)
       this.#applyMicMute()
       diagnostics.info('mídia', 'microfone capturado')
+      this.#watchOwnSpeech()
     } catch (error) {
       // A missing microphone is not fatal: join as a listener. Silence is sent
       // in place of a real track so outgoing calls can still be established.
@@ -293,6 +296,8 @@ export class MeshSession {
     this.#stopAttention = null
     this.#stopUnload?.()
     this.#stopUnload = null
+    this.#stopSpeaking?.()
+    this.#stopSpeaking = null
     this.#clearInvite()
 
     for (const record of this.#records.values()) this.#teardownRecord(record)
@@ -522,6 +527,17 @@ export class MeshSession {
   }
 
   /**
+   * Sets how loudly one person is played here.
+   *
+   * Never announced: the only remedy for someone too loud, echoing or eating
+   * with a hot mic used to be disconnecting them, which is a heavy answer to a
+   * problem that is only yours.
+   */
+  setPeerVolume(peerId: string, volume: number): void {
+    this.#patch(peerId, { volume: Math.min(1, Math.max(0, volume)) })
+  }
+
+  /**
    * Removes someone from the channel.
    *
    * Enforced by convention only: we ask them to leave and stop talking to them.
@@ -571,6 +587,9 @@ export class MeshSession {
     this.#micMuted = muted
     this.#applyMicMute()
     this.#broadcast({ t: 'mic', micMuted: muted })
+    // Muting mid-sentence would otherwise leave the tile lit on every other
+    // screen until the next transition.
+    if (muted) this.#broadcast({ t: 'speaking', speaking: false })
     this.#publish()
   }
 
@@ -660,6 +679,7 @@ export class MeshSession {
     for (const record of this.#records.values()) {
       this.#replaceTrack(record.audioCall, 'audio', track)
     }
+    this.#watchOwnSpeech()
     diagnostics.info('mídia', `microfone trocado em ${this.#records.size} chamada(s)`)
 
     // Released only after the swap, so the old device stays live until the new
@@ -1304,6 +1324,9 @@ export class MeshSession {
       case 'attention':
         this.#patch(peerId, { attention: message.attention })
         return
+      case 'speaking':
+        this.#patch(peerId, { speaking: message.speaking })
+        return
       case 'channel-name': {
         if (!this.#channel) return
         const claim = { at: message.at, from: message.from }
@@ -1463,6 +1486,8 @@ export class MeshSession {
         name: shortId(peerId),
         status: 'connecting',
         micMuted: false,
+        speaking: false,
+        volume: 1,
         // Not 'focused': we have not heard from them yet, and claiming they
         // are watching would be worse than admitting we do not know.
         attention: 'unknown',
@@ -1557,6 +1582,28 @@ export class MeshSession {
     for (const record of this.#records.values()) {
       if (record.conn) this.#send(record.conn, message)
     }
+  }
+
+  /**
+   * Tells the others when this microphone is picking up speech.
+   *
+   * Only the transitions go on the wire, never a level — a value changing
+   * sixty times a second would be a broadcast storm for something the eye
+   * reads as a single "is talking".
+   *
+   * Its own analyser, separate from the level meter's: the meter needs a
+   * continuous reading for the bars, this needs a debounced boolean, and one
+   * would have to be derived from the other through the snapshot at frame rate.
+   */
+  #watchOwnSpeech(): void {
+    this.#stopSpeaking?.()
+    this.#stopSpeaking = null
+    if (!this.#mic) return
+
+    this.#stopSpeaking = watchSpeaking(this.#mic, (speaking) => {
+      // A muted microphone is not speaking, whatever it hears.
+      this.#broadcast({ t: 'speaking', speaking: speaking && !this.#micMuted })
+    })
   }
 
   #applyMicMute(): void {

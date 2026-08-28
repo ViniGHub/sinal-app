@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 import { useMediaStream } from '@/features/media/useMediaStream'
 import { shortId } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
@@ -46,10 +48,17 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
   const audioRef = useMediaStream<HTMLAudioElement>(peer.audioStream)
   const pip = usePictureInPicture(cameraRef)
 
+  // Applied imperatively for the same reason as srcObject: volume is a property
+  // of the element, not an attribute React can render.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = peer.volume
+  }, [audioRef, peer.volume, peer.audioStream])
+
   const hasVideo = peer.screenStream !== null || peer.cameraStream !== null
+  const silenced = peer.volume === 0
 
   return (
-    <article className={styles.tile}>
+    <article className={`${styles.tile} ${peer.speaking ? styles.speaking : ''}`}>
       <div className={styles.screen}>
         {peer.screenStream && (
           /* Not muted: on Chromium the shared tab's audio rides along. */
@@ -98,6 +107,30 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
       {/* The voice channel. Hidden, but it is what actually makes the call. */}
       <audio ref={audioRef} autoPlay />
 
+      {/* How loudly we hear this one person. Local: the remedy for someone too
+          loud or echoing used to be disconnecting them. */}
+      <div className={styles.volume}>
+        <button
+          type="button"
+          className={`${styles.mute} ${silenced ? styles.silenced : ''}`}
+          onClick={() => session.setPeerVolume(peer.id, silenced ? 1 : 0)}
+          aria-label={silenced ? `Ouvir ${peer.name}` : `Silenciar ${peer.name} para você`}
+          title={silenced ? 'silenciado só para você' : 'silenciar só para você'}
+        >
+          {silenced ? '🔇' : '🔊'}
+        </button>
+        <input
+          className={styles.slider}
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={peer.volume}
+          onChange={(event) => session.setPeerVolume(peer.id, Number(event.target.value))}
+          aria-label={`Volume de ${peer.name}`}
+        />
+      </div>
+
       <div className={styles.meta}>
         <div className={styles.who}>
           <span className={styles.name}>{peer.name}</span>
@@ -110,7 +143,7 @@ export function PeerTile({ peer, onExpand, isAdmin }: PeerTileProps) {
               className={`${styles.dot} ${peer.status === 'connected' ? styles.dotLive : ''}`}
               aria-hidden="true"
             />
-            {peer.micMuted ? 'mudo' : STATUS_LABEL[peer.status]}
+            {peer.micMuted ? 'mudo' : peer.speaking ? 'falando' : STATUS_LABEL[peer.status]}
           </span>
 
           {peer.attention !== 'unknown' && (

@@ -254,3 +254,19 @@ describe('sanitizeName', () => {
     expect(sanitizeName({ toString: () => 'x' })).toBe('')
   })
 })
+
+describe('mensagens de fala', () => {
+  it('só aceita o booleano, sem inventar a partir de outra coisa', () => {
+    // A tile lighting up because a peer sent the string "yes" would be the app
+    // asserting who is talking on evidence it does not have.
+    expect(parseWireMessage({ t: 'speaking', speaking: true })).toEqual({
+      t: 'speaking',
+      speaking: true,
+    })
+    expect(parseWireMessage({ t: 'speaking', speaking: 'sim' })).toEqual({
+      t: 'speaking',
+      speaking: false,
+    })
+    expect(parseWireMessage({ t: 'speaking' })).toEqual({ t: 'speaking', speaking: false })
+  })
+})
