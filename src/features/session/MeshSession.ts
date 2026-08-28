@@ -3,7 +3,7 @@ import type { DataConnection, MediaConnection } from 'peerjs'
 
 import { ChannelAnchor } from '@/features/channels/ChannelAnchor'
 import { generateChannelId, isChannelId } from '@/features/channels/storage'
-import type { ChatMessage } from '@/features/chat/types'
+import type { ChatFile, ChatMessage } from '@/features/chat/types'
 import {
   loadDisplayName,
   loadPeerId,
@@ -40,6 +40,8 @@ import { isAdminName } from './moderation'
 import { resolveIceConfig } from './ice'
 import {
   MAX_CHAT_LENGTH,
+  MAX_FILE_BYTES,
+  MAX_FILE_NAME_LENGTH,
   isValidPeerId,
   parseWireMessage,
   sanitizeChannelName,
@@ -298,6 +300,7 @@ export class MeshSession {
     this.#stopUnload = null
     this.#stopSpeaking?.()
     this.#stopSpeaking = null
+    this.#releaseFiles()
     this.#clearInvite()
 
     for (const record of this.#records.values()) this.#teardownRecord(record)
@@ -829,6 +832,50 @@ export class MeshSession {
     else void this.startCamera()
   }
 
+  /**
+   * Sends a file to everyone in the channel.
+   *
+   * It goes straight from this browser to theirs: no upload, no account, no
+   * copy left sitting on a server. The cost of that is memory — the bytes are
+   * held whole on both ends while they cross — which is what the size cap is
+   * protecting.
+   */
+  async sendFile(file: File): Promise<void> {
+    if (this.#destroyed || this.#records.size === 0) return
+
+    if (file.size === 0) {
+      this.#setStatus('error', 'esse arquivo está vazio.')
+      return
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      const limit = Math.round(MAX_FILE_BYTES / 1024 / 1024)
+      this.#setStatus('error', `arquivo muito grande — o limite é ${limit} MB.`)
+      return
+    }
+
+    let data: ArrayBuffer
+    try {
+      data = await file.arrayBuffer()
+    } catch {
+      this.#setStatus('error', 'não foi possível ler esse arquivo.')
+      return
+    }
+    if (this.#destroyed) return
+
+    const name = file.name.slice(0, MAX_FILE_NAME_LENGTH)
+    const at = Date.now()
+    this.#broadcast({ t: 'file', name, size: data.byteLength, at, data })
+
+    // Our own copy points at the file we already have, rather than at bytes
+    // sent back to us.
+    this.#pushMessage('self', this.#displayName(), '', at, {
+      name,
+      size: data.byteLength,
+      url: URL.createObjectURL(file),
+    })
+    diagnostics.info('arquivo', `enviado ${name} (${data.byteLength} bytes)`)
+  }
+
   sendChat(rawText: string): void {
     const text = rawText.trim().slice(0, MAX_CHAT_LENGTH)
     if (!text) return
@@ -889,6 +936,7 @@ export class MeshSession {
     for (const peerId of [...this.#records.keys()]) this.#dropPeer(peerId)
     // The conversation belonged to that channel. Carrying it into the next one
     // would show a room its own history had nothing to do with.
+    this.#releaseFiles()
     this.#messages = []
     this.#setStatus('idle', 'você saiu do canal.')
     this.#publish()
@@ -1352,6 +1400,19 @@ export class MeshSession {
       case 'camera':
         if (!message.on) this.#patch(peerId, { cameraStream: null })
         return
+      case 'file': {
+        const sender = this.#records.get(peerId)?.view.name ?? shortId(peerId)
+        // Rebuilt as a blob here: the bytes arrived as a plain buffer, and an
+        // object URL is what a download link can point at.
+        const url = URL.createObjectURL(new Blob([message.data]))
+        this.#pushMessage(peerId, sender, '', message.at || Date.now(), {
+          name: message.name,
+          size: message.size,
+          url,
+        })
+        diagnostics.info('arquivo', `recebido ${message.name} de ${shortId(peerId)}`)
+        return
+      }
       case 'chat': {
         const name = this.#records.get(peerId)?.view.name ?? shortId(peerId)
         this.#pushMessage(peerId, name, message.text, message.at || Date.now())
@@ -1616,11 +1677,34 @@ export class MeshSession {
     return this.#selfName || shortId(this.#selfId ?? 'você')
   }
 
-  #pushMessage(from: string, name: string, text: string, at: number): void {
+  #pushMessage(from: string, name: string, text: string, at: number, file?: ChatFile): void {
     this.#messageSeq += 1
-    const message: ChatMessage = { id: `${from}-${this.#messageSeq}`, from, name, text, at }
-    this.#messages = [...this.#messages, message].slice(-MAX_MESSAGES)
+    const message: ChatMessage = {
+      id: `${from}-${this.#messageSeq}`,
+      from,
+      name,
+      text,
+      at,
+      ...(file ? { file } : {}),
+    }
+
+    const kept = [...this.#messages, message].slice(-MAX_MESSAGES)
+    // Anything pushed off the end takes its blob with it. An object URL keeps
+    // the whole file alive in memory until it is revoked, so a long session of
+    // sharing would otherwise never give any of it back.
+    for (const dropped of this.#messages) {
+      if (dropped.file && !kept.includes(dropped)) URL.revokeObjectURL(dropped.file.url)
+    }
+
+    this.#messages = kept
     this.#publish()
+  }
+
+  /** Frees every blob the chat is holding. */
+  #releaseFiles(): void {
+    for (const message of this.#messages) {
+      if (message.file) URL.revokeObjectURL(message.file.url)
+    }
   }
 
   #setStatus(kind: SessionStatus['kind'], message: string): void {

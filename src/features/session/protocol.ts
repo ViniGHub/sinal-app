@@ -11,6 +11,13 @@ import type { AttentionState, Occupant } from '@/features/participants/types'
 export const MAX_NAME_LENGTH = 24
 export const MAX_CHANNEL_NAME_LENGTH = 32
 export const MAX_CHAT_LENGTH = 800
+/**
+ * A file crosses the data channel whole, and both sides hold it in memory
+ * while it does. The cap is what keeps a careless drag from taking a tab down
+ * on either end.
+ */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_FILE_NAME_LENGTH = 80
 /** Guards against a peer flooding us with a huge roster. */
 export const MAX_ROSTER_SIZE = 64
 
@@ -37,6 +44,12 @@ export type WireMessage =
   /** Transient, so it is never part of the handshake — it starts false. */
   | { t: 'speaking'; speaking: boolean }
   | { t: 'chat'; text: string; at: number }
+  /**
+   * A file, sent whole. PeerJS chunks and reassembles large payloads on its
+   * own, so the bytes ride inside the message rather than needing a second
+   * channel and a correlation id.
+   */
+  | { t: 'file'; name: string; size: number; at: number; data: ArrayBuffer }
   /**
    * Answer to a personal invite: the channel to meet in. The person being
    * invited never learns a peer id from this — only where to go.
@@ -192,6 +205,19 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       if (!name || !isValidPeerId(from)) return null
       const at = typeof msg['at'] === 'number' && Number.isFinite(msg['at']) ? msg['at'] : 0
       return { t: 'channel-name', name, at, from }
+    }
+    case 'file': {
+      const data = msg['data']
+      // Accepted only as bytes. A string here would mean a peer trying to hand
+      // us something other than a file under a file's name.
+      if (!(data instanceof ArrayBuffer) || data.byteLength === 0) return null
+      if (data.byteLength > MAX_FILE_BYTES) return null
+
+      const name = cleanText(msg['name'], MAX_FILE_NAME_LENGTH) || 'arquivo'
+      const at = typeof msg['at'] === 'number' && Number.isFinite(msg['at']) ? msg['at'] : 0
+      // The declared size is ignored in favour of what actually arrived: they
+      // are the same when honest, and only the real one can be trusted.
+      return { t: 'file', name, size: data.byteLength, at, data }
     }
     case 'chat': {
       const text = cleanText(msg['text'], MAX_CHAT_LENGTH)

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
-import { MAX_CHAT_LENGTH } from '@/features/session/protocol'
+import { MAX_CHAT_LENGTH, MAX_FILE_BYTES } from '@/features/session/protocol'
 import { useSession } from '@/features/session/useMesh'
 import type { NotificationState } from './notifications'
 import type { ChatMessage } from './types'
@@ -14,6 +14,13 @@ interface ChatPanelProps {
   /** Browser-level permission, owned by the app shell so it can be refreshed. */
   notificationPermission: NotificationState
   onToggleNotifications: () => void
+}
+
+/** "1,4 MB" — enough to tell a photo from a video before downloading it. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 const time = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -33,6 +40,7 @@ export function ChatPanel({
   const session = useSession()
   const [draft, setDraft] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ block: 'end' })
@@ -101,7 +109,18 @@ export function ChatPanel({
                   {time.format(message.at)}
                 </time>
               </div>
-              <p className={styles.text}>{message.text}</p>
+              {message.file ? (
+                <a
+                  className={styles.file}
+                  href={message.file.url}
+                  download={message.file.name}
+                >
+                  <span className={styles.fileName}>{message.file.name}</span>
+                  <span className={styles.fileSize}>{formatBytes(message.file.size)}</span>
+                </a>
+              ) : (
+                <p className={styles.text}>{message.text}</p>
+              )}
             </div>
           ))
         )}
@@ -109,6 +128,30 @@ export function ChatPanel({
       </div>
 
       <form className={styles.compose} onSubmit={submit}>
+        {/* The input itself stays hidden: browsers will not let it be styled,
+            and a button is what the rest of the panel looks like. */}
+        <input
+          ref={fileRef}
+          type="file"
+          className="srOnly"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) void session.sendFile(file)
+            // Cleared so choosing the same file twice fires again.
+            event.target.value = ''
+          }}
+        />
+        <button
+          type="button"
+          className={styles.attach}
+          onClick={() => fileRef.current?.click()}
+          title={`enviar arquivo (até ${Math.round(MAX_FILE_BYTES / 1024 / 1024)} MB)`}
+          aria-label="Enviar arquivo"
+        >
+          📎
+        </button>
+
         <input
           className={styles.input}
           value={draft}

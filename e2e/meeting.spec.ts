@@ -161,12 +161,44 @@ test.describe('encontro entre dois participantes', () => {
 
     await bob.getByRole('button', { name: /Mensagens/ }).click()
     await bob.getByLabel('Mensagem').fill('ainda aqui')
-    await bob.getByRole('button', { name: 'enviar' }).click()
+    await bob.getByRole('button', { name: 'enviar', exact: true }).click()
 
     await carol.getByRole('button', { name: /Mensagens/ }).click()
     await expect(carol.getByText('ainda aqui')).toBeVisible()
 
     for (const page of [alice, bob, carol]) await page.context().close()
+  })
+
+  test('um arquivo vai de um navegador ao outro, sem servidor no meio', async ({ browser }) => {
+    const alice = await openParticipant(browser)
+    const bob = await openParticipant(browser)
+
+    await alice.goto('/')
+    await waitForReady(alice)
+    await bob.goto(await copyChannelLink(alice))
+    await expect(headcount(bob)).toHaveText('2')
+
+    await bob.getByRole('button', { name: /Mensagens/ }).click()
+    await bob.setInputFiles('input[type=file]', {
+      name: 'anotacoes.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('combinado para sexta'),
+    })
+
+    // The link on the other side has to be a real download, pointing at bytes
+    // that crossed the data channel — not a name someone typed.
+    await alice.getByRole('button', { name: /Mensagens/ }).click()
+    const link = alice.getByRole('link', { name: /anotacoes.txt/ })
+    await expect(link).toBeVisible()
+    await expect(link).toHaveAttribute('download', 'anotacoes.txt')
+
+    const href = (await link.getAttribute('href')) ?? ''
+    expect(href).toMatch(/^blob:/)
+    const received = await alice.evaluate((url) => fetch(url).then((r) => r.text()), href)
+    expect(received).toBe('combinado para sexta')
+
+    await alice.close()
+    await bob.close()
   })
 
   test('a mensagem de um chega ao outro', async ({ browser }) => {
@@ -181,7 +213,7 @@ test.describe('encontro entre dois participantes', () => {
 
     await bob.getByRole('button', { name: /Mensagens/ }).click()
     await bob.getByLabel('Mensagem').fill('cheguei')
-    await bob.getByRole('button', { name: 'enviar' }).click()
+    await bob.getByRole('button', { name: 'enviar', exact: true }).click()
 
     // Proves the data channel carries payload, not just the handshake — the
     // roster could gossip correctly while messages went nowhere.

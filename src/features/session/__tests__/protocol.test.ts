@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHAT_LENGTH,
+  MAX_FILE_BYTES,
+  MAX_FILE_NAME_LENGTH,
   MAX_NAME_LENGTH,
   MAX_ROSTER_SIZE,
   isValidPeerId,
@@ -268,5 +270,46 @@ describe('mensagens de fala', () => {
       speaking: false,
     })
     expect(parseWireMessage({ t: 'speaking' })).toEqual({ t: 'speaking', speaking: false })
+  })
+})
+
+describe('mensagens de arquivo', () => {
+  const bytes = new TextEncoder().encode('conteúdo').buffer
+
+  it('aceita bytes e confia no que chegou, não no tamanho declarado', () => {
+    const parsed = parseWireMessage({
+      t: 'file',
+      name: 'notas.txt',
+      // A sender claiming a different size proves nothing; the buffer does.
+      size: 999999,
+      at: 5,
+      data: bytes,
+    })
+    expect(parsed).toMatchObject({
+      t: 'file',
+      name: 'notas.txt',
+      size: bytes.byteLength,
+      at: 5,
+    })
+  })
+
+  it('recusa qualquer coisa que não sejam bytes de verdade', () => {
+    // A string arriving under a file's name would be turned into a blob and
+    // offered as a download — the one place where trusting the shape matters.
+    expect(parseWireMessage({ t: 'file', name: 'x', data: 'não sou bytes' })).toBeNull()
+    expect(parseWireMessage({ t: 'file', name: 'x', data: null })).toBeNull()
+    expect(parseWireMessage({ t: 'file', name: 'x' })).toBeNull()
+    expect(parseWireMessage({ t: 'file', name: 'x', data: new ArrayBuffer(0) })).toBeNull()
+  })
+
+  it('recusa um arquivo acima do teto, que ambos os lados guardam na memória', () => {
+    const huge = new ArrayBuffer(MAX_FILE_BYTES + 1)
+    expect(parseWireMessage({ t: 'file', name: 'grande', data: huge })).toBeNull()
+  })
+
+  it('dá um nome a um arquivo que chega sem nenhum, e corta os longos', () => {
+    expect(parseWireMessage({ t: 'file', data: bytes })).toMatchObject({ name: 'arquivo' })
+    const long = parseWireMessage({ t: 'file', name: 'z'.repeat(200), data: bytes })
+    expect((long as { name: string }).name).toHaveLength(MAX_FILE_NAME_LENGTH)
   })
 })
