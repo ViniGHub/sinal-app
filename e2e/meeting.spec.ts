@@ -179,10 +179,15 @@ test.describe('encontro entre dois participantes', () => {
     await expect(headcount(bob)).toHaveText('2')
 
     await bob.getByRole('button', { name: /Mensagens/ }).click()
+    // Deliberately past PeerJS's ~16 KB chunking threshold. Below it a payload
+    // rides in a single datagram and arrives as an ArrayBuffer; above it, it is
+    // reassembled into a Uint8Array instead. A small fixture exercises only the
+    // first path and passed happily while every real file was being dropped.
+    const payload = 'combinado para sexta\n'.repeat(3000)
     await bob.setInputFiles('input[type=file]', {
       name: 'anotacoes.txt',
       mimeType: 'text/plain',
-      buffer: Buffer.from('combinado para sexta'),
+      buffer: Buffer.from(payload),
     })
 
     // The link on the other side has to be a real download, pointing at bytes
@@ -195,7 +200,7 @@ test.describe('encontro entre dois participantes', () => {
     const href = (await link.getAttribute('href')) ?? ''
     expect(href).toMatch(/^blob:/)
     const received = await alice.evaluate((url) => fetch(url).then((r) => r.text()), href)
-    expect(received).toBe('combinado para sexta')
+    expect(received).toBe(payload)
 
     await alice.close()
     await bob.close()

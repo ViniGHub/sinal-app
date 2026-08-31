@@ -853,9 +853,9 @@ export class MeshSession {
       return
     }
 
-    let data: ArrayBuffer
+    let data: Uint8Array
     try {
-      data = await file.arrayBuffer()
+      data = new Uint8Array(await file.arrayBuffer())
     } catch {
       this.#setStatus('error', 'não foi possível ler esse arquivo.')
       return

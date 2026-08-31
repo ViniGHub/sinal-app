@@ -48,8 +48,11 @@ export type WireMessage =
    * A file, sent whole. PeerJS chunks and reassembles large payloads on its
    * own, so the bytes ride inside the message rather than needing a second
    * channel and a correlation id.
+   *
+   * Typed as a view rather than a raw buffer because that is the one shape
+   * both of PeerJS's delivery paths can produce — see `parseMessage`.
    */
-  | { t: 'file'; name: string; size: number; at: number; data: ArrayBuffer }
+  | { t: 'file'; name: string; size: number; at: number; data: Uint8Array }
   /**
    * Answer to a personal invite: the channel to meet in. The person being
    * invited never learns a peer id from this — only where to go.
@@ -207,10 +210,23 @@ export function parseWireMessage(raw: unknown): WireMessage | null {
       return { t: 'channel-name', name, at, from }
     }
     case 'file': {
-      const data = msg['data']
       // Accepted only as bytes. A string here would mean a peer trying to hand
       // us something other than a file under a file's name.
-      if (!(data instanceof ArrayBuffer) || data.byteLength === 0) return null
+      //
+      // Both shapes are checked because PeerJS delivers them differently, and
+      // silently: a payload small enough to fit one datagram arrives as an
+      // ArrayBuffer, while a chunked one is reassembled into a Uint8Array
+      // before being unpacked. Testing only for ArrayBuffer therefore drops
+      // every file above ~16 KB — which is to say every real file — while the
+      // small ones a test would use go through.
+      const raw = msg['data']
+      const data =
+        raw instanceof Uint8Array
+          ? raw
+          : raw instanceof ArrayBuffer
+            ? new Uint8Array(raw)
+            : null
+      if (!data || data.byteLength === 0) return null
       if (data.byteLength > MAX_FILE_BYTES) return null
 
       const name = cleanText(msg['name'], MAX_FILE_NAME_LENGTH) || 'arquivo'

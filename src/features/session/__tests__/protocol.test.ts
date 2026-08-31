@@ -293,6 +293,17 @@ describe('mensagens de arquivo', () => {
     })
   })
 
+  it('aceita os bytes remontados de um arquivo grande, não só os de um pequeno', () => {
+    // PeerJS hands the two sizes over differently: a payload that fits one
+    // datagram arrives as an ArrayBuffer, while a chunked one is reassembled
+    // into a Uint8Array. Accepting only the first shape dropped every file
+    // above ~16 KB, and no fixture small enough to be convenient could show it.
+    const view = new Uint8Array([1, 2, 3, 4])
+    const parsed = parseWireMessage({ t: 'file', name: 'grande.bin', at: 9, data: view })
+    expect(parsed).toMatchObject({ t: 'file', name: 'grande.bin', size: 4, at: 9 })
+    expect([...(parsed as { data: Uint8Array }).data]).toEqual([1, 2, 3, 4])
+  })
+
   it('recusa qualquer coisa que não sejam bytes de verdade', () => {
     // A string arriving under a file's name would be turned into a blob and
     // offered as a download — the one place where trusting the shape matters.
